@@ -306,7 +306,9 @@ async def show_history_brief(
     history = context.user_data.get("docs_history", [])
 
     if not history:
-        await update.message.reply_text("🔮 История пуста — вы ещё ничего не разбирали.")
+        await update.message.reply_text(
+            "🔮 История пуста — вы ещё ничего не разбирали."
+        )
         return
 
     text_lines = ["🔮 Тезисная история последних документов:\n"]
