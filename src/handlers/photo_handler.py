@@ -7,7 +7,12 @@ from telegram.constants import ChatAction
 from src.vision_client import image_to_text
 from src.ai_client import ask_deepseek
 from src.quota import can_process_document, register_document, MAX_DOCS_PER_MONTH
-from src.nlp_utils import detect_doc_type, detect_user_emotion, detect_red_flags, build_ai_input
+from src.nlp_utils import (
+    detect_doc_type,
+    detect_user_emotion,
+    detect_red_flags,
+    build_ai_input,
+)
 
 TEMP_DIR = "tmp"
 os.makedirs(TEMP_DIR, exist_ok=True)

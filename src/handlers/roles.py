@@ -72,6 +72,7 @@ ST_BTN_SUPPORT = "💚 Психологическая помощь"
 
 # ---------- КЛАВИАТУРЫ ----------
 
+
 def build_role_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [ROLE_PATIENT, ROLE_STUDENT],
@@ -139,6 +140,7 @@ def build_plan_keyboard() -> ReplyKeyboardMarkup:
 
 # ---------- /start ----------
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # лёгкий рефакторинг: всё, что касается ролей/планов, живёт в этом модуле
     context.user_data.setdefault("plan", PLAN_BASIC)
@@ -162,6 +164,7 @@ start_handler = CommandHandler("start", start)
 
 
 # ---------- ВЫБОР РОЛИ ----------
+
 
 async def handle_role_choice(
     update: Update,
@@ -213,14 +216,13 @@ async def handle_role_choice(
 
 
 role_handler = MessageHandler(
-    filters.Regex(
-        f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"
-    ),
+    filters.Regex(f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"),
     handle_role_choice,
 )
 
 
 # ---------- ВРАЧ: ВЫБОР СПЕЦИАЛЬНОСТИ ----------
+
 
 async def handle_doctor_specialty(
     update: Update,
@@ -249,15 +251,18 @@ async def handle_doctor_specialty(
 
 
 doctor_specialty_handler = MessageHandler(
-    filters.Regex("^(🩺 Терапевт|❤️ Кардиолог|🧠 Невролог|🔪 Хирург|"
-                  "🧬 Нефролог|🍏 Гастроэнтеролог|🧒 Педиатр|👂 ЛОР|"
-                  "👁 Офтальмолог|🧴 Дерматолог|🧷 Гинеколог|💊 Эндокринолог|"
-                  "🧲 Онколог|🦴 Травматолог|📋 Другая специальность)$"),
+    filters.Regex(
+        "^(🩺 Терапевт|❤️ Кардиолог|🧠 Невролог|🔪 Хирург|"
+        "🧬 Нефролог|🍏 Гастроэнтеролог|🧒 Педиатр|👂 ЛОР|"
+        "👁 Офтальмолог|🧴 Дерматолог|🧷 Гинеколог|💊 Эндокринолог|"
+        "🧲 Онколог|🦴 Травматолог|📋 Другая специальность)$"
+    ),
     handle_doctor_specialty,
 )
 
 
 # ---------- ОБЩАЯ КНОПКА: ВЕРНУТЬСЯ К ВЫБОРУ РОЛИ ----------
+
 
 async def handle_back_to_role(
     update: Update,
@@ -266,8 +271,7 @@ async def handle_back_to_role(
     context.user_data.pop("profile_type", None)
     context.user_data.pop("mode", None)
     await update.message.reply_text(
-        "Вы вернулись к выбору роли. "
-        "Кто вы сейчас?",
+        "Вы вернулись к выбору роли. " "Кто вы сейчас?",
         reply_markup=build_role_keyboard(),
     )
 
@@ -279,6 +283,7 @@ back_to_role_handler = MessageHandler(
 
 
 # ---------- МЕНЮ ПАЦИЕНТА: КНОПКИ ----------
+
 
 async def handle_patient_menu_button(
     update: Update,
@@ -362,6 +367,7 @@ patient_menu_handler = MessageHandler(
 
 # ---------- МЕНЮ ВРАЧА: КНОПКИ ----------
 
+
 async def handle_doctor_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -434,6 +440,7 @@ doctor_menu_handler = MessageHandler(
 
 # ---------- МЕНЮ СТУДЕНТА: КНОПКИ ----------
 
+
 async def handle_student_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -499,6 +506,7 @@ student_menu_handler = MessageHandler(
 
 
 # ---------- ПОДПИСКА ----------
+
 
 async def show_subscription(
     update: Update,
@@ -587,14 +595,13 @@ async def handle_plan_choice(
 
 
 plan_choice_handler = MessageHandler(
-    filters.Regex(
-        f"^{BTN_PLAN_BASIC}$|^{BTN_PLAN_PLUS}$|^{BTN_PLAN_PRO}$"
-    ),
+    filters.Regex(f"^{BTN_PLAN_BASIC}$|^{BTN_PLAN_PLUS}$|^{BTN_PLAN_PRO}$"),
     handle_plan_choice,
 )
 
 
 # ---------- HELP / ПОДСКАЗКИ ----------
+
 
 async def show_help(
     update: Update,

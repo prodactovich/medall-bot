@@ -1,12 +1,7 @@
 from __future__ import annotations
 
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import (
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram import ReplyKeyboardMarkup, Update
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 # --- Роли ---
 
@@ -17,10 +12,10 @@ ROLE_HELP = "❓ Помощь"
 
 # --- Стили для пациента ---
 
-PATIENT_STYLE_SIMPLE   = "⚡️ Краткий формат"
+PATIENT_STYLE_SIMPLE = "⚡️ Краткий формат"
 PATIENT_STYLE_DETAILED = "📋 Стандартный формат"
-PATIENT_STYLE_SOFT     = "💚 Понятный и упрощённый"
-PATIENT_STYLE_MAX      = "🔍 Расширенный разбор"
+PATIENT_STYLE_SOFT = "💚 Понятный и упрощённый"
+PATIENT_STYLE_MAX = "🔍 Расширенный разбор"
 
 # --- Режимы для студента ---
 
@@ -38,7 +33,7 @@ DOC_SPEC_OTHER = "📎 Другая специальность"
 
 # --- Главное меню режимов ответов ---
 
-MENU_BRIEF = "🚀 Коротко"
+MENU_BRIEF = "🚀 Тезисно"
 MENU_HISTORY_BRIEF = "🔮 История"
 MENU_DEEP = "🔬 Глубокий анализ"
 MENU_CLEAR_HISTORY = "🦠 Очистить историю"
@@ -176,22 +171,13 @@ async def handle_patient_style(
     style = update.message.text
 
     if style == PATIENT_STYLE_SIMPLE:
-        role_desc = (
-            "пациент, предпочитает простые "
-            "и короткие объяснения"
-        )
+        role_desc = "пациент, предпочитает простые " "и короткие объяснения"
         response_mode = "brief"
     elif style == PATIENT_STYLE_DETAILED:
-        role_desc = (
-            "пациент, предпочитает подробные "
-            "объяснения с деталями"
-        )
+        role_desc = "пациент, предпочитает подробные " "объяснения с деталями"
         response_mode = "deep"
     elif style == PATIENT_STYLE_SOFT:
-        role_desc = (
-            "пациент, которому важен мягкий, "
-            "поддерживающий тон"
-        )
+        role_desc = "пациент, которому важен мягкий, " "поддерживающий тон"
         response_mode = "balanced"
     elif style == PATIENT_STYLE_MAX:
         role_desc = (
@@ -224,9 +210,7 @@ async def handle_student_mode(
     mode = update.message.text
 
     if mode == STUDENT_MODE_EXPLAIN:
-        context.user_data["role"] = (
-            "студент-медик (нужны объяснения материала)"
-        )
+        context.user_data["role"] = "студент-медик (нужны объяснения материала)"
         context.user_data["response_mode"] = "balanced"
         msg = (
             "Ок, буду объяснять темы простым, но точным языком, "
@@ -235,18 +219,14 @@ async def handle_student_mode(
             "или клинические задачи."
         )
     elif mode == STUDENT_MODE_TRAIN:
-        context.user_data["role"] = (
-            "студент-медик (режим тренировки и закрепления)"
-        )
+        context.user_data["role"] = "студент-медик (режим тренировки и закрепления)"
         context.user_data["response_mode"] = "deep"
         msg = (
             "Отлично! Я могу разбирать материалы и задавать вам "
             "вопросы для закрепления — как мини-тренажёр."
         )
     elif mode == STUDENT_MODE_HELP:
-        context.user_data["role"] = (
-            "студент-медик (нужна точечная помощь с вопросами)"
-        )
+        context.user_data["role"] = "студент-медик (нужна точечная помощь с вопросами)"
         context.user_data["response_mode"] = "brief"
         msg = (
             "Хорошо, задавайте любые вопросы: непонятные места "
@@ -293,8 +273,7 @@ async def handle_doctor_specialty(
     )
 
     await update.message.reply_text(
-        compliment
-        + "\n\nЯ буду давать вам сжатые, структурированные объяснения "
+        compliment + "\n\nЯ буду давать вам сжатые, структурированные объяснения "
         "с акцентом на клинически важное и, при необходимости, "
         "готовые формулировки для общения с пациентом.",
         reply_markup=main_menu_keyboard(),
@@ -327,9 +306,7 @@ async def show_history_brief(
     history = context.user_data.get("docs_history", [])
 
     if not history:
-        await update.message.reply_text(
-            "🔮 История пуста — вы ещё ничего не разбирали."
-        )
+        await update.message.reply_text("🔮 История пуста — вы ещё ничего не разбирали.")
         return
 
     text_lines = ["🔮 Тезисная история последних документов:\n"]
@@ -390,9 +367,7 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 start_handler = CommandHandler("start", start)
 
 role_handler = MessageHandler(
-    filters.Regex(
-        f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"
-    ),
+    filters.Regex(f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"),
     handle_role_choice,
 )
 
@@ -406,8 +381,7 @@ patient_style_handler = MessageHandler(
 
 student_mode_handler = MessageHandler(
     filters.Regex(
-        f"^{STUDENT_MODE_EXPLAIN}$|^{STUDENT_MODE_TRAIN}$|"
-        f"^{STUDENT_MODE_HELP}$"
+        f"^{STUDENT_MODE_EXPLAIN}$|^{STUDENT_MODE_TRAIN}$|" f"^{STUDENT_MODE_HELP}$"
     ),
     handle_student_mode,
 )

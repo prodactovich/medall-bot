@@ -22,8 +22,8 @@ from src.handlers.roles import (
 # Простые лимиты по планам (за сессию пользователя)
 PLAN_LIMITS: Dict[str, Dict[str, Any]] = {
     PLAN_BASIC: {
-        "docs": 10,   # сколько запросов к ИИ за сессию
-        "deep": 2,    # сколько глубоких разборов (patient_deep) за сессию
+        "docs": 10,  # сколько запросов к ИИ за сессию
+        "deep": 2,  # сколько глубоких разборов (patient_deep) за сессию
     },
     PLAN_PLUS: {
         "docs": 50,
@@ -82,7 +82,10 @@ def _build_role_description(
         return f"Пациент, тариф {plan_label}, без уточнённого режима."
 
     if profile == "doctor":
-        spec = context.user_data.get("doctor_specialty") or "врач без указания специальности"
+        spec = (
+            context.user_data.get("doctor_specialty")
+            or "врач без указания специальности"
+        )
         if mode == "doctor_guidelines":
             return (
                 f"{spec}, тариф {plan_label}, режим: сжатое изложение актуальных "

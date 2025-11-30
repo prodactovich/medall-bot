@@ -44,6 +44,7 @@ def current_month() -> str:
 
 # ===== ЛИМИТ ДОКУМЕНТОВ (Basic) =====
 
+
 def get_docs_used(user_id: int) -> int:
     month = _current_month()
     conn = _get_conn()
@@ -92,6 +93,7 @@ def register_document(user_id: int) -> None:
 
 
 # ===== УЧЁТ СИМВОЛОВ / ТОКЕНОВ =====
+
 
 def register_usage(input_chars: int, output_chars: int) -> None:
     """Копим статистику по использованным символам за месяц."""
