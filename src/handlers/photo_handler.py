@@ -1,18 +1,23 @@
-import os
 import asyncio
-from telegram import Update
-from telegram.ext import MessageHandler, ContextTypes, filters
-from telegram.constants import ChatAction
+import os
 
-from src.vision_client import image_to_text
+from telegram import Update
+from telegram.constants import ChatAction
+from telegram.ext import ContextTypes, MessageHandler, filters
+
 from src.ai_client import ask_deepseek
-from src.quota import can_process_document, register_document, MAX_DOCS_PER_MONTH
 from src.nlp_utils import (
-    detect_doc_type,
-    detect_user_emotion,
-    detect_red_flags,
     build_ai_input,
+    detect_doc_type,
+    detect_red_flags,
+    detect_user_emotion,
 )
+from src.quota import (
+    MAX_DOCS_PER_MONTH,
+    can_process_document,
+    register_document,
+)
+from src.vision_client import image_to_text
 
 TEMP_DIR = "tmp"
 os.makedirs(TEMP_DIR, exist_ok=True)

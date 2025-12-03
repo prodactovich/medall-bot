@@ -1,4 +1,5 @@
 import os
+
 import requests
 
 OCR_API_KEY = os.getenv("OCR_SPACE_API_KEY")
@@ -29,5 +30,7 @@ def image_to_text(file_path: str, language: str = "rus") -> str:
     if not parsed_results:
         return ""
 
-    full_text = "\n\n".join(item.get("ParsedText", "") for item in parsed_results)
+    full_text = "\n\n".join(
+        item.get("ParsedText", "") for item in parsed_results
+    )
     return full_text.strip()

@@ -1,22 +1,22 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from src.ai_client import ask_deepseek
-from src.nlp_utils import (
-    detect_doc_type,
-    detect_user_emotion,
-    detect_red_flags,
-    build_ai_input,
-)
 from src.handlers.roles import (
-    get_user_plan,
     PLAN_BASIC,
     PLAN_PLUS,
     PLAN_PRO,
+    get_user_plan,
+)
+from src.nlp_utils import (
+    build_ai_input,
+    detect_doc_type,
+    detect_red_flags,
+    detect_user_emotion,
 )
 
 # Простые лимиты по планам (за сессию пользователя)

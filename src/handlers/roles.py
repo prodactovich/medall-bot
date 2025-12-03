@@ -2,15 +2,10 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import (
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram import ReplyKeyboardMarkup, Update
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
-# ---------- ПЛАНЫ ПОДПИСКИ ----------
+from domain.enums import PlanCode
 
 PlanType = Literal["basic", "plus", "pro"]
 
@@ -24,19 +19,23 @@ BTN_PLAN_PLUS = "⭐️ MedAll PLUS"
 BTN_PLAN_PRO = "💎 MedAll PRO"
 
 
-def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanType:
+def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
+    # Пытаюсь дость из user_data "plan" -> else: None
     plan = context.user_data.get("plan")
-    if plan not in (PLAN_BASIC, PLAN_PLUS, PLAN_PRO):
-        plan = PLAN_BASIC
+
+    if plan not in (PlanCode.BASIC, PlanCode.PLUS, PlanCode.PRO):
+        plan = PlanCode.BASIC
         context.user_data["plan"] = plan
+
     return plan
 
 
 def set_user_plan(context: ContextTypes.DEFAULT_TYPE, plan: PlanType) -> None:
-    context.user_data["plan"] = plan
+    """Сохраняем выбранный план в user_data с валидацией."""
+    if plan not in (PLAN_BASIC, PLAN_PLUS, PLAN_PRO):
+        plan = PLAN_BASIC
+    context.user_data["plan"] = PlanCode(plan)
 
-
-# ---------- РОЛИ ----------
 
 ROLE_PATIENT = "🧑 Пациент"
 ROLE_STUDENT = "📚 Студент"
@@ -216,7 +215,9 @@ async def handle_role_choice(
 
 
 role_handler = MessageHandler(
-    filters.Regex(f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"),
+    filters.Regex(
+        f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"
+    ),
     handle_role_choice,
 )
 

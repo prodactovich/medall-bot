@@ -210,7 +210,9 @@ async def handle_student_mode(
     mode = update.message.text
 
     if mode == STUDENT_MODE_EXPLAIN:
-        context.user_data["role"] = "студент-медик (нужны объяснения материала)"
+        context.user_data["role"] = (
+            "студент-медик (нужны объяснения материала)"
+        )
         context.user_data["response_mode"] = "balanced"
         msg = (
             "Ок, буду объяснять темы простым, но точным языком, "
@@ -219,14 +221,18 @@ async def handle_student_mode(
             "или клинические задачи."
         )
     elif mode == STUDENT_MODE_TRAIN:
-        context.user_data["role"] = "студент-медик (режим тренировки и закрепления)"
+        context.user_data["role"] = (
+            "студент-медик (режим тренировки и закрепления)"
+        )
         context.user_data["response_mode"] = "deep"
         msg = (
             "Отлично! Я могу разбирать материалы и задавать вам "
             "вопросы для закрепления — как мини-тренажёр."
         )
     elif mode == STUDENT_MODE_HELP:
-        context.user_data["role"] = "студент-медик (нужна точечная помощь с вопросами)"
+        context.user_data["role"] = (
+            "студент-медик (нужна точечная помощь с вопросами)"
+        )
         context.user_data["response_mode"] = "brief"
         msg = (
             "Хорошо, задавайте любые вопросы: непонятные места "
@@ -273,7 +279,8 @@ async def handle_doctor_specialty(
     )
 
     await update.message.reply_text(
-        compliment + "\n\nЯ буду давать вам сжатые, структурированные объяснения "
+        compliment
+        + "\n\nЯ буду давать вам сжатые, структурированные объяснения "
         "с акцентом на клинически важное и, при необходимости, "
         "готовые формулировки для общения с пациентом.",
         reply_markup=main_menu_keyboard(),
@@ -369,7 +376,9 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 start_handler = CommandHandler("start", start)
 
 role_handler = MessageHandler(
-    filters.Regex(f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"),
+    filters.Regex(
+        f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"
+    ),
     handle_role_choice,
 )
 
@@ -383,7 +392,8 @@ patient_style_handler = MessageHandler(
 
 student_mode_handler = MessageHandler(
     filters.Regex(
-        f"^{STUDENT_MODE_EXPLAIN}$|^{STUDENT_MODE_TRAIN}$|" f"^{STUDENT_MODE_HELP}$"
+        f"^{STUDENT_MODE_EXPLAIN}$|^{STUDENT_MODE_TRAIN}$|"
+        f"^{STUDENT_MODE_HELP}$"
     ),
     handle_student_mode,
 )

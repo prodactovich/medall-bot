@@ -3,20 +3,20 @@ from __future__ import annotations
 from telegram.ext import ApplicationBuilder
 
 from src.config import TELEGRAM_TOKEN
+from src.handlers.photo_handler import photo_handler
 from src.handlers.roles import (
-    start_handler,
-    role_handler,
-    doctor_specialty_handler,
     back_to_role_handler,
-    patient_menu_handler,
     doctor_menu_handler,
+    doctor_specialty_handler,
+    help_handler,
+    patient_menu_handler,
+    plan_choice_handler,
+    role_handler,
+    start_handler,
     student_menu_handler,
     subscription_handler,
-    plan_choice_handler,
-    help_handler,
 )
 from src.handlers.text_handler import text_handler
-from src.handlers.photo_handler import photo_handler
 
 
 def main() -> None:

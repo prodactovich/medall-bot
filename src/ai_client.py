@@ -7,7 +7,6 @@ import aiohttp
 
 from src.prompts import build_system_prompt
 
-
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_URL = os.getenv(
     "DEEPSEEK_URL",
@@ -77,7 +76,9 @@ async def ask_deepseek(
                 resp.raise_for_status()
                 data = await resp.json()
     except aiohttp.ClientResponseError as e:
-        return "DeepSeek вернул ошибку при обработке запроса. " f"Код: {e.status}"
+        return (
+            "DeepSeek вернул ошибку при обработке запроса. " f"Код: {e.status}"
+        )
     except Exception as e:  # noqa: B902
         return f"Произошла сетевая ошибка при обращении к ИИ: {e}"
 
