@@ -1,0 +1,20 @@
+[tool.black]
+line-length = 79
+target-version = ["py311", "py312"]
+include = "\\.pyi?$"
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.ruff]
+line-length = 88                # Ruff line length (E501 ignored; Black handles wrapping)
+extend-select = ["B", "I"]      # Extra rules: B bugbear, I import sorting (isort)
+ignore = ["E501"]
+target-version = "py312"
