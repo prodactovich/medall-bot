@@ -1,26 +1,55 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+import os
+import re
+from typing import Optional
 
-from telegram import ReplyKeyboardMarkup, Update
+from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from domain.enums import PlanCode
-
-PlanType = Literal["basic", "plus", "pro"]
-
-
-PLAN_BASIC: PlanType = "basic"
-PLAN_PLUS: PlanType = "plus"
-PLAN_PRO: PlanType = "pro"
-
-BTN_PLAN_BASIC = "🔹 MedAll BASIC"
-BTN_PLAN_PLUS = "⭐️ MedAll PLUS"
-BTN_PLAN_PRO = "💎 MedAll PRO"
+from src.config import INTRO_VIDEO_CAPTION, INTRO_VIDEO_PATH
+from src.ui.buttons import (
+    BTN_BACK_TO_ROLE,
+    BTN_PLAN_BASIC,
+    BTN_PLAN_PLUS,
+    BTN_PLAN_PRO,
+    BTN_SUBSCRIPTION,
+    DOC_BTN_DRUGS,
+    DOC_BTN_FOREIGN,
+    DOC_BTN_GUIDELINES,
+    DOC_BTN_PATIENT_EXPL,
+    DOC_BTN_SUPPORT,
+    DOCTOR_SPECIALTIES,
+    PAT_BTN_ACTIONS,
+    PAT_BTN_DEEP,
+    PAT_BTN_HISTORY,
+    PAT_BTN_THESIS,
+    PLAN_BASIC,
+    PLAN_PLUS,
+    PLAN_PRO,
+    ROLE_DOCTOR,
+    ROLE_HELP,
+    ROLE_PATIENT,
+    ROLE_STUDENT,
+    ST_BTN_ESSAY,
+    ST_BTN_EXPLAIN,
+    ST_BTN_SUPPORT,
+    ST_BTN_TESTS,
+    ST_BTN_TRAIN,
+    PlanType,
+    build_doctor_menu,
+    build_doctor_specialties_keyboard,
+    build_patient_menu,
+    build_plan_keyboard,
+    build_role_keyboard,
+    build_student_menu,
+)
+from src.ui.messages import start_greeting
 
 
 def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
-    # Пытаюсь дость из user_data "plan" -> else: None
     plan = context.user_data.get("plan")
 
     if plan not in (PlanCode.BASIC, PlanCode.PLUS, PlanCode.PRO):
@@ -37,121 +66,67 @@ def set_user_plan(context: ContextTypes.DEFAULT_TYPE, plan: PlanType) -> None:
     context.user_data["plan"] = PlanCode(plan)
 
 
-ROLE_PATIENT = "🧑 Пациент"
-ROLE_STUDENT = "📚 Студент"
-ROLE_DOCTOR = "👨‍⚕️ Врач"
-ROLE_HELP = "❓ Помощь"
-
-BTN_BACK_TO_ROLE = "↩️ Выбрать роль"
-BTN_SUBSCRIPTION = "💎 Подписка MedAll"
-
-# ---------- ПАЦИЕНТ: КНОПКИ ----------
-
-PAT_BTN_THESIS = "⚡️ Тезисно"
-PAT_BTN_DEEP = "🔍 Глубокий анализ"
-PAT_BTN_HISTORY = "📘 История"
-PAT_BTN_ACTIONS = "🧭 Порядок действий"
-
-# ---------- ВРАЧ: КНОПКИ ----------
-
-DOC_BTN_GUIDELINES = "📘 Клинические рекомендации"
-DOC_BTN_DRUGS = "💊 Справочник лекарств"
-DOC_BTN_PATIENT_EXPL = "🗣 Объяснение пациенту"
-DOC_BTN_FOREIGN = "🌍 Зарубежная литература"
-DOC_BTN_SUPPORT = "💚 Психологическая поддержка врача"
-
-# ---------- СТУДЕНТ: КНОПКИ ----------
-
-ST_BTN_EXPLAIN = "📘 Объяснить тему"
-ST_BTN_TRAIN = "🧪 Потренироваться"
-ST_BTN_TESTS = "❓ Помощь с тестами"
-ST_BTN_ESSAY = "📄 Помощь с рефератом/докладом"
-ST_BTN_SUPPORT = "💚 Психологическая помощь"
+async def _send_typing(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Показывает индикатор набора текста до отправки ответа."""
+    chat = update.effective_chat
+    if not chat:
+        return
+    try:
+        await context.bot.send_chat_action(
+            chat_id=chat.id,
+            action=ChatAction.TYPING,
+        )
+    except Exception:
+        # не падаем на ошибке отправки action
+        pass
 
 
-# ---------- КЛАВИАТУРЫ ----------
-
-
-def build_role_keyboard() -> ReplyKeyboardMarkup:
-    keyboard = [
-        [ROLE_PATIENT, ROLE_STUDENT],
-        [ROLE_DOCTOR, ROLE_HELP],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-def build_patient_menu(plan: PlanType) -> ReplyKeyboardMarkup:
-    keyboard = [
-        [PAT_BTN_THESIS, PAT_BTN_DEEP],
-        [PAT_BTN_ACTIONS, PAT_BTN_HISTORY],
-        [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-def build_doctor_menu(plan: PlanType) -> ReplyKeyboardMarkup:
-    keyboard = [
-        [DOC_BTN_GUIDELINES, DOC_BTN_DRUGS],
-        [DOC_BTN_PATIENT_EXPL, DOC_BTN_FOREIGN],
-        [DOC_BTN_SUPPORT],
-        [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-def build_student_menu(plan: PlanType) -> ReplyKeyboardMarkup:
-    keyboard = [
-        [ST_BTN_EXPLAIN, ST_BTN_TRAIN],
-        [ST_BTN_TESTS, ST_BTN_ESSAY],
-        [ST_BTN_SUPPORT],
-        [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-def build_doctor_specialties_keyboard() -> ReplyKeyboardMarkup:
-    keyboard = [
-        ["🩺 Терапевт", "❤️ Кардиолог"],
-        ["🧠 Невролог", "🔪 Хирург"],
-        ["🧬 Нефролог", "🍏 Гастроэнтеролог"],
-        ["🧒 Педиатр", "👂 ЛОР"],
-        ["👁 Офтальмолог", "🧴 Дерматолог"],
-        ["🧷 Гинеколог", "💊 Эндокринолог"],
-        ["🧲 Онколог", "🦴 Травматолог"],
-        ["📋 Другая специальность"],
-    ]
-    return ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
-
-
-def build_plan_keyboard() -> ReplyKeyboardMarkup:
-    keyboard = [
-        [BTN_PLAN_BASIC],
-        [BTN_PLAN_PLUS],
-        [BTN_PLAN_PRO],
-        [BTN_BACK_TO_ROLE],
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+async def _delete_intro_if_any(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Удаляет приветственное видео, если ещё лежит в чате."""
+    msg_id = context.user_data.pop("intro_video_id", None)
+    if not msg_id:
+        return
+    try:
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=msg_id,
+        )
+    except Exception:
+        # Если видео уже удалено или устарело - тихо игнорируем
+        pass
 
 
 # ---------- /start ----------
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # лёгкий рефакторинг: всё, что касается ролей/планов, живёт в этом модуле
+    await _send_typing(update, context)
     context.user_data.setdefault("plan", PLAN_BASIC)
     context.user_data.pop("profile_type", None)
     context.user_data.pop("doctor_specialty", None)
     context.user_data.pop("mode", None)
+    context.user_data.pop("intro_video_id", None)
 
-    text = (
-        "Здравствуйте, я MedAll 🤖\n"
-        "AI-ассистент для работы с медицинской информацией.\n\n"
-        "Кто вы сейчас и как мне лучше подстроиться под вас?"
-    )
+    text = start_greeting()
+
+    # Отправляем приветственное видео, если путь задан и файл есть
+    if INTRO_VIDEO_PATH and os.path.exists(INTRO_VIDEO_PATH):
+        try:
+            video_msg = await update.message.reply_video(
+                video=INTRO_VIDEO_PATH,
+                caption=INTRO_VIDEO_CAPTION,
+                supports_streaming=True,
+            )
+            context.user_data["intro_video_id"] = video_msg.message_id
+        except Exception:
+            # Не блокируем старт, если видео не отправилось
+            pass
 
     await update.message.reply_text(
         text,
@@ -169,12 +144,14 @@ async def handle_role_choice(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     text = update.message.text
     plan = get_user_plan(context)
+    await _delete_intro_if_any(update, context)
 
     if text == ROLE_PATIENT:
         context.user_data["profile_type"] = "patient"
-        context.user_data["mode"] = "patient_thesis"  # по умолчанию — тезисный
+        context.user_data["mode"] = "patient_thesis"
         await update.message.reply_text(
             "Я настроюсь под роль пациента: буду объяснять анализы и "
             "заключения понятным языком.\n\n"
@@ -187,13 +164,13 @@ async def handle_role_choice(
         context.user_data["profile_type"] = "student"
         context.user_data["mode"] = "student_explain"
         await update.message.reply_text(
-            "Роль: студент-медик 👨‍🎓\n\n"
+            "Роль: студент-медик 🎓\n\n"
             "Доступно:\n"
-            "• 📘 Объяснить тему — разобрать непонятное место простым языком.\n"
-            "• 🧪 Потренироваться — разобрать клинические мини-задачи.\n"
-            "• ❓ Помощь с тестами — вместе пройтись по вопросам.\n"
-            "• 📄 Реферат/доклад — помочь со структурой и текстом.\n"
-            "• 💚 Психологическая помощь — поддержать, когда тяжело.\n\n"
+            "• 📖 Объяснить тему - разобрать непонятное место простым языком.\n"
+            "• 📝 Потренироваться - разобрать клинические мини-задачи.\n"
+            "• ❔ Помощь с тестами - вместе пройтись по вопросам.\n"
+            "• 🧾 Реферат/доклад - помочь со структурой и текстом.\n"
+            "• 🤝 Психологическая помощь - поддержать, когда тяжело.\n\n"
             "Отправьте текст, фото или выберите режим ниже.",
             reply_markup=build_student_menu(plan),
         )
@@ -202,8 +179,8 @@ async def handle_role_choice(
     if text == ROLE_DOCTOR:
         context.user_data["profile_type"] = "doctor"
         await update.message.reply_text(
-            "Роль: врач 👨‍⚕️\n\n"
-            "Уточните, пожалуйста, вашу основную специальность — "
+            "Роль: врач 🩺\n\n"
+            "Уточните, пожалуйста, вашу основную специальность - "
             "так я смогу точнее подбирать формулировки и подсказки.",
             reply_markup=build_doctor_specialties_keyboard(),
         )
@@ -229,10 +206,10 @@ async def handle_doctor_specialty(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     spec = update.message.text
     plan = get_user_plan(context)
 
-    # просто сохраняем как есть (эмодзи + текст)
     context.user_data["doctor_specialty"] = spec
     context.user_data["profile_type"] = "doctor"
     context.user_data["mode"] = "doctor_default"
@@ -240,12 +217,11 @@ async def handle_doctor_specialty(
     await update.message.reply_text(
         "Спасибо. Я учту вашу специальность при подборе формулировок.\n\n"
         "Доступно:\n"
-        "• 📘 Клинические рекомендации — сжатая информация по запросу.\n"
-        "• 💊 Справочник лекарств — действующие вещества, аналоги и формы.\n"
-        "• 🗣 Объяснение пациенту — коротко, понятно, в нескольких вариантах.\n"
-        "• 🌍 Зарубежная литература — поиск и сжатие данных из зарубежных "
-        "источников.\n"
-        "• 💚 Психологическая поддержка — выговориться, снять напряжение.\n\n"
+        "• 📑 Клинические рекомендации - сжатая информация по запросу.\n"
+        "• 💊 Справочник лекарств - действующие вещества, аналоги и формы.\n"
+        "• 💬 Объяснение пациенту - коротко, понятно, в нескольких вариантах.\n"
+        "• 🌍 Зарубежная литература - обзор зарубежных источников.\n"
+        "• 🤗 Психологическая поддержка - выговориться, снять напряжение.\n\n"
         "Выберите, с чего начнём.",
         reply_markup=build_doctor_menu(plan),
     )
@@ -253,10 +229,7 @@ async def handle_doctor_specialty(
 
 doctor_specialty_handler = MessageHandler(
     filters.Regex(
-        "^(🩺 Терапевт|❤️ Кардиолог|🧠 Невролог|🔪 Хирург|"
-        "🧬 Нефролог|🍏 Гастроэнтеролог|🧒 Педиатр|👂 ЛОР|"
-        "👁 Офтальмолог|🧴 Дерматолог|🧷 Гинеколог|💊 Эндокринолог|"
-        "🧲 Онколог|🦴 Травматолог|📋 Другая специальность)$"
+        f"^({'|'.join(re.escape(item) for item in DOCTOR_SPECIALTIES)})$"
     ),
     handle_doctor_specialty,
 )
@@ -269,10 +242,11 @@ async def handle_back_to_role(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     context.user_data.pop("profile_type", None)
     context.user_data.pop("mode", None)
     await update.message.reply_text(
-        "Вы вернулись к выбору роли. " "Кто вы сейчас?",
+        "Вы вернулись к выбору роли. Кто вы сейчас?",
         reply_markup=build_role_keyboard(),
     )
 
@@ -290,43 +264,39 @@ async def handle_patient_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     text = update.message.text
     plan = get_user_plan(context)
 
-    # безопасность: убедимся, что роль — пациент
     if context.user_data.get("profile_type") != "patient":
         return
 
     if text == PAT_BTN_THESIS:
         context.user_data["mode"] = "patient_thesis"
         await update.message.reply_text(
-            "Режим: ⚡️ тезисно.\n"
+            "Режим: 📌 тезисно.\n"
             "Я буду выделять ключевые маркёры и выводы в сжатом формате.",
         )
         return
 
     if text == PAT_BTN_DEEP:
-        # здесь можно проверять план и предлагать PRO/PLUS
         if plan == PLAN_BASIC:
             await update.message.reply_text(
-                "Глубокий анализ доступен полностью в MedAll PRO.\n"
-                "В вашем тарифе BASIC будет доступно только несколько "
-                "глубоких разборов.\n\n"
-                "Чтобы получить расширенный анализ без ограничений, "
-                "можно открыть экран подписки.",
+                "Глубокий анализ полностью доступен в MedAll PRO.\n"
+                "В BASIC есть ограниченное число глубоких разборов.\n\n"
+                "Чтобы снять ограничения, откройте экран подписки.",
                 reply_markup=build_plan_keyboard(),
             )
             return
 
         context.user_data["mode"] = "patient_deep"
         await update.message.reply_text(
-            "Режим: 🔍 глубокий анализ.\n"
+            "Режим: 🧠 глубокий анализ.\n"
             "Я буду разбирать информацию подробнее, с логикой и аналогиями.",
         )
         return
 
     if text == PAT_BTN_HISTORY:
-        # здесь пока заглушка — историю формируешь в text_handler
         history = context.user_data.get("docs_history", [])
         if not history:
             await update.message.reply_text(
@@ -334,7 +304,7 @@ async def handle_patient_menu_button(
             )
             return
 
-        lines = ["📘 История последних запросов:"]
+        lines = ["📜 История последних запросов:"]
         for i, item in enumerate(history[-10:], start=1):
             one_line = item.replace("\n", " ")
             if len(one_line) > 80:
@@ -344,7 +314,6 @@ async def handle_patient_menu_button(
         return
 
     if text == PAT_BTN_ACTIONS:
-        # Это кнопка "Порядок действий" — включаем специальный режим
         context.user_data["mode"] = "patient_actions"
         await update.message.reply_text(
             "Режим: 🧭 порядок действий.\n"
@@ -352,7 +321,7 @@ async def handle_patient_menu_button(
             "• обозначить возможные причины;\n"
             "• подсказать, к какому врачу логичнее обратиться;\n"
             "• предложить примерный список вопросов к врачу;\n"
-            "• задать вам уточняющие вопросы для более точного маршрута.",
+            "• задать уточняющие вопросы для более точного маршрута.",
         )
         return
 
@@ -373,16 +342,15 @@ async def handle_doctor_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     text = update.message.text
     if context.user_data.get("profile_type") != "doctor":
         return
 
-    # Здесь мы в основном задаём режим/настройку,
-    # а сам "умный" ответ будет строиться в text_handler по mode.
     if text == DOC_BTN_GUIDELINES:
         context.user_data["mode"] = "doctor_guidelines"
         await update.message.reply_text(
-            "Режим: 📘 клинические рекомендации.\n"
+            "Режим: 📑 клинические рекомендации.\n"
             "Отправьте текст запроса или выдержку — я сожму информацию "
             "по актуальным клин. рекомендациям (без назначения лечения), "
             "со ссылками на источники.",
@@ -401,7 +369,7 @@ async def handle_doctor_menu_button(
     if text == DOC_BTN_PATIENT_EXPL:
         context.user_data["mode"] = "doctor_patient_expl"
         await update.message.reply_text(
-            "Режим: 🗣 объяснение пациенту.\n"
+            "Режим: 💬 объяснение пациенту.\n"
             "Отправьте фрагмент заключения или анализа — "
             "я предложу несколько вариантов объяснения для пациента "
             "разного уровня детализации.",
@@ -412,18 +380,17 @@ async def handle_doctor_menu_button(
         context.user_data["mode"] = "doctor_foreign"
         await update.message.reply_text(
             "Режим: 🌍 зарубежная литература.\n"
-            "Опишите вопрос или приведите выдержку — я постараюсь "
-            "ориентироваться на зарубежные источники и указать ключевые "
-            "выводы и связи.",
+            "Опишите вопрос или приведите выдержку — постараюсь опереться "
+            "на зарубежные источники и выделить ключевые выводы.",
         )
         return
 
     if text == DOC_BTN_SUPPORT:
         context.user_data["mode"] = "doctor_support"
         await update.message.reply_text(
-            "Режим: 💚 психологическая поддержка врача.\n"
+            "Режим: 🤗 психологическая поддержка врача.\n"
             "Можно просто написать, что вас тревожит в работе, "
-            "что вы чувствуете — я постараюсь быть бережным "
+            "что вы чувствуете — постараюсь быть бережным "
             "и поддерживающим собеседником.",
         )
         return
@@ -446,6 +413,7 @@ async def handle_student_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     text = update.message.text
     if context.user_data.get("profile_type") != "student":
         return
@@ -453,17 +421,17 @@ async def handle_student_menu_button(
     if text == ST_BTN_EXPLAIN:
         context.user_data["mode"] = "student_explain"
         await update.message.reply_text(
-            "Режим: 📘 объяснить тему.\n"
+            "Режим: 📖 объяснить тему.\n"
             "Пришлите фрагмент текста, тему из конспекта или учебника — "
-            "я объясню проще и структурированно.",
+            "объясню проще и структурированно.",
         )
         return
 
     if text == ST_BTN_TRAIN:
         context.user_data["mode"] = "student_train"
         await update.message.reply_text(
-            "Режим: 🧪 потренироваться.\n"
-            "Напишите тему — я подготовлю пару клинических мини-задач "
+            "Режим: 📝 потренироваться.\n"
+            "Напишите тему — подготовлю пару клинических мини-задач "
             "и вопросы для самопроверки.",
         )
         return
@@ -471,25 +439,25 @@ async def handle_student_menu_button(
     if text == ST_BTN_TESTS:
         context.user_data["mode"] = "student_tests"
         await update.message.reply_text(
-            "Режим: ❓ помощь с тестами.\n"
+            "Режим: ❔ помощь с тестами.\n"
             "Пришлите вопросы теста (фото или текстом) — "
-            "я помогу разобраться в формулировках и логике.",
+            "помогу разобраться в формулировках и логике.",
         )
         return
 
     if text == ST_BTN_ESSAY:
         context.user_data["mode"] = "student_essay"
         await update.message.reply_text(
-            "Режим: 📄 реферат/доклад.\n"
+            "Режим: 🧾 реферат/доклад.\n"
             "Напишите тему, желаемый объём и, если есть, источники — "
-            "я помогу со структурой и ключевыми тезисами.",
+            "помогу со структурой и ключевыми тезисами.",
         )
         return
 
     if text == ST_BTN_SUPPORT:
         context.user_data["mode"] = "student_support"
         await update.message.reply_text(
-            "Режим: 💚 психологическая поддержка.\n"
+            "Режим: 🤝 психологическая поддержка.\n"
             "Можно просто выговориться: учёба в меде сложная, "
             "я постараюсь поддержать и мягко мотивировать.",
         )
@@ -513,6 +481,7 @@ async def show_subscription(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     plan = get_user_plan(context)
 
     current = {
@@ -522,21 +491,21 @@ async def show_subscription(
     }[plan]
 
     text = (
-        "💎 MedAll — уровни подписки для пациентов\n\n"
+        "💳 MedAll — уровни подписки\n\n"
         "Текущий уровень: "
         f"{current}\n\n"
-        "🔹 MEDALL BASIC • бесплатно\n"
+        "🟢 MEDALL BASIC — бесплатно\n"
         "• Простые разъяснения\n"
         "• Стандартный формат\n"
         "• 2 глубоких разбора/мес\n"
         "• OCR: до 3 фото\n"
         "• История: до 10 записей\n\n"
-        "⭐️ MEDALL PLUS • условная цена\n"
+        "🔵 MEDALL PLUS — условная цена\n"
         "• Более понятные разъяснения\n"
         "• Расширенный анализ\n"
         "• OCR: до 10 фото\n"
         "• История: до 50 записей\n\n"
-        "💎 MEDALL PRO • условная цена\n"
+        "🟣 MEDALL PRO — условная цена\n"
         "• Глубокий анализ\n"
         "• Поддерживающий режим\n"
         "• OCR без ограничений\n"
@@ -562,24 +531,24 @@ async def handle_plan_choice(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     text = update.message.text
 
     if text == BTN_PLAN_BASIC:
         set_user_plan(context, PLAN_BASIC)
-        msg = "Вы выбрали 🔹 MedAll BASIC."
+        msg = "Вы выбрали 🟢 MedAll BASIC."
     elif text == BTN_PLAN_PLUS:
         set_user_plan(context, PLAN_PLUS)
-        msg = "Вы выбрали ⭐️ MedAll PLUS."
+        msg = "Вы выбрали 🔵 MedAll PLUS."
     elif text == BTN_PLAN_PRO:
         set_user_plan(context, PLAN_PRO)
-        msg = "Вы выбрали 💎 MedAll PRO."
+        msg = "Вы выбрали 🟣 MedAll PRO."
     else:
         return
 
     profile_type: Optional[str] = context.user_data.get("profile_type")
     plan = get_user_plan(context)
 
-    # после выбора плана возвращаем в меню текущей роли
     if profile_type == "patient":
         kb = build_patient_menu(plan)
     elif profile_type == "doctor":
@@ -608,11 +577,12 @@ async def show_help(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    await _send_typing(update, context)
     profile = context.user_data.get("profile_type")
 
     if profile == "doctor":
         text = (
-            "Режим врача 👨‍⚕️.\n\n"
+            "Режим врача 🩺.\n\n"
             "• Клинические рекомендации — сжатая информация по запросу.\n"
             "• Справочник лекарств — действующее вещество, аналоги.\n"
             "• Объяснение пациенту — понятные формулировки.\n"
@@ -621,7 +591,7 @@ async def show_help(
         )
     elif profile == "student":
         text = (
-            "Режим студента 📚.\n\n"
+            "Режим студента 🎓.\n\n"
             "• Объяснить тему — разобрать непонятный фрагмент.\n"
             "• Потренироваться — клинические мини-кейсы.\n"
             "• Помощь с тестами — разбор вопросов.\n"
@@ -630,10 +600,10 @@ async def show_help(
         )
     elif profile == "patient":
         text = (
-            "Режим пациента 🧑.\n\n"
+            "Режим пациента 🤒.\n\n"
             "• Тезисно — короткие выводы и ключевые маркёры.\n"
             "• Глубокий анализ — подробное объяснение (в PRO ещё глубже).\n"
-            "• Порядок действий — как подготовиться к приёму и что спросить.\n"
+            "• Порядок действий — подготовка к приёму и вопросы врачу.\n"
             "• История — краткие записи по прошлым запросам."
         )
     else:
