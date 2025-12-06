@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import time
+
 from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
+from domain.analytics import ensure_session_id, new_request_id, track
 from src.ai_client import ask_deepseek
 from src.handlers.context import build_role_description
 from src.handlers.roles import get_user_plan
@@ -57,6 +60,12 @@ async def handle_message(
         )
         return
 
+    # трекинг идентификаторов
+    request_id = new_request_id()
+    session_id = ensure_session_id(context)
+    user_id = update.effective_user.id if update.effective_user else None
+    t0 = time.perf_counter()
+
     limits = get_limits(plan)
     usage = ensure_usage(context)
 
@@ -87,6 +96,20 @@ async def handle_message(
 
     usage_info: dict = {}
 
+    track(
+        "document_sent",
+        user_id=user_id,
+        session_id=session_id,
+        request_id=request_id,
+        role=profile,
+        mode=mode,
+        plan=plan,
+        request_type="text",
+        doc_type=doc_type,
+        input_chars=len(user_text),
+        red_flags=red_flags,
+    )
+
     answer = await ask_deepseek(
         ai_input,
         role=role_desc,
@@ -96,6 +119,23 @@ async def handle_message(
         red_flags=red_flags,
         usage_tracker=usage_info,
         plan=plan,
+    )
+
+    latency_ms = int((time.perf_counter() - t0) * 1000)
+    track(
+        "explanation_generated",
+        user_id=user_id,
+        session_id=session_id,
+        request_id=request_id,
+        role=profile,
+        mode=mode,
+        plan=plan,
+        doc_type=doc_type,
+        input_chars=len(ai_input),
+        output_chars=len(answer),
+        red_flags=red_flags,
+        usage=usage_info,
+        latency_ms=latency_ms,
     )
 
     history = context.user_data.setdefault("docs_history", [])
