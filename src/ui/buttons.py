@@ -8,10 +8,10 @@ PlanType = Literal["basic", "plus", "pro"]
 
 # ---------- Общие кнопки ----------
 
-ROLE_PATIENT = "🤒 Пациент"
-ROLE_STUDENT = "🎓 Студент"
-ROLE_DOCTOR = "🩺 Врач"
-ROLE_HELP = "❓ Помощь"
+ROLE_PATIENT = "👨‍⚕️ Пациент"
+ROLE_STUDENT = "👩‍🎓 Студент"
+ROLE_DOCTOR = "👨‍⚕️ Врач"
+ROLE_HELP = "🆘 Помощь"
 
 BTN_BACK_TO_ROLE = "↩️ Выбрать роль"
 BTN_SUBSCRIPTION = "💳 Подписка MedAll"
@@ -22,9 +22,9 @@ PLAN_BASIC: PlanType = "basic"
 PLAN_PLUS: PlanType = "plus"
 PLAN_PRO: PlanType = "pro"
 
-BTN_PLAN_BASIC = "🟢 MedAll BASIC"
-BTN_PLAN_PLUS = "🔵 MedAll PLUS"
-BTN_PLAN_PRO = "🟣 MedAll PRO"
+BTN_PLAN_BASIC = "🪙 MedAll BASIC"
+BTN_PLAN_PLUS = "💰 MedAll PLUSS"
+BTN_PLAN_PRO = "💎 MedAll PRO"
 
 # ---------- Пациент ----------
 
@@ -39,7 +39,7 @@ DOC_BTN_GUIDELINES = "📑 Клинические рекомендации"
 DOC_BTN_DRUGS = "💊 Справочник лекарств"
 DOC_BTN_PATIENT_EXPL = "💬 Объяснение пациенту"
 DOC_BTN_FOREIGN = "🌍 Зарубежная литература"
-DOC_BTN_SUPPORT = "🤗 Психологическая поддержка врача"
+DOC_BTN_SUPPORT = "🤗 Возможность выговориться"
 
 DOCTOR_SPECIALTIES = [
     "👩‍⚕️ Терапевт",
