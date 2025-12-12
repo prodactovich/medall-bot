@@ -10,6 +10,7 @@ from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from domain.enums import PlanCode
 from src.config import INTRO_VIDEO_CAPTION, INTRO_VIDEO_PATH
+from src.ui import messages
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
     BTN_PLAN_BASIC,
@@ -46,7 +47,6 @@ from src.ui.buttons import (
     build_role_keyboard,
     build_student_menu,
 )
-from src.ui.messages import start_greeting
 
 
 def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
@@ -113,7 +113,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop("mode", None)
     context.user_data.pop("intro_video_id", None)
 
-    text = start_greeting()
+    text = messages.start_greeting()
 
     # Отправляем приветственное видео, если путь задан и файл есть
     if INTRO_VIDEO_PATH and os.path.exists(INTRO_VIDEO_PATH):
@@ -153,9 +153,7 @@ async def handle_role_choice(
         context.user_data["profile_type"] = "patient"
         context.user_data["mode"] = "patient_thesis"
         await update.message.reply_text(
-            "Я настроюсь под роль пациента: буду объяснять анализы и "
-            "заключения понятным языком.\n\n"
-            "Вы можете отправить документ или текст, а также выбрать режим ниже.",
+            messages.patient_intro(),
             reply_markup=build_patient_menu(plan),
         )
         return
