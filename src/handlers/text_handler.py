@@ -3,10 +3,12 @@ from __future__ import annotations
 import time
 
 from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from domain.analytics import ensure_session_id, new_request_id, track
 from src.ai_client import ask_deepseek
+from src.handlers import roles
 from src.handlers.context import build_role_description
 from src.handlers.roles import get_user_plan
 from src.limits import ensure_usage, get_limits, inc_usage
@@ -16,7 +18,95 @@ from src.nlp_utils import (
     detect_red_flags,
     detect_user_emotion,
 )
+from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
+from src.ui.buttons import (
+    BTN_BACK_TO_ROLE,
+    BTN_PLAN_BASIC,
+    BTN_PLAN_PLUS,
+    BTN_PLAN_PRO,
+    BTN_SUBSCRIPTION,
+    DOC_BTN_DRUGS,
+    DOC_BTN_FOREIGN,
+    DOC_BTN_GUIDELINES,
+    DOC_BTN_PATIENT_EXPL,
+    DOC_BTN_SUPPORT,
+    DOCTOR_SPECIALTIES,
+    PAT_BTN_ACTIONS,
+    PAT_BTN_DEEP,
+    PAT_BTN_HISTORY,
+    PAT_BTN_THESIS,
+    ROLE_DOCTOR,
+    ROLE_HELP,
+    ROLE_PATIENT,
+    ROLE_STUDENT,
+    ST_BTN_ESSAY,
+    ST_BTN_EXPLAIN,
+    ST_BTN_SUPPORT,
+    ST_BTN_TESTS,
+    ST_BTN_TRAIN,
+)
 from src.ui.messages import deep_limit_reached, docs_limit_reached
+
+
+async def _route_keyboard_buttons(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Фолбэк: руками вызываем обработчики кнопок, если regex-фильтры не сработали."""
+    if not update.message or not update.message.text:
+        return False
+
+    text = update.message.text
+
+    if text in (ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_HELP):
+        await roles.handle_role_choice(update, context)
+        return True
+
+    if text in DOCTOR_SPECIALTIES:
+        await roles.handle_doctor_specialty(update, context)
+        return True
+
+    if text == BTN_BACK_TO_ROLE:
+        await roles.handle_back_to_role(update, context)
+        return True
+
+    if text in (
+        PAT_BTN_THESIS,
+        PAT_BTN_DEEP,
+        PAT_BTN_HISTORY,
+        PAT_BTN_ACTIONS,
+    ):
+        await roles.handle_patient_menu_button(update, context)
+        return True
+
+    if text in (
+        DOC_BTN_GUIDELINES,
+        DOC_BTN_DRUGS,
+        DOC_BTN_PATIENT_EXPL,
+        DOC_BTN_FOREIGN,
+        DOC_BTN_SUPPORT,
+    ):
+        await roles.handle_doctor_menu_button(update, context)
+        return True
+
+    if text in (
+        ST_BTN_EXPLAIN,
+        ST_BTN_TRAIN,
+        ST_BTN_TESTS,
+        ST_BTN_ESSAY,
+        ST_BTN_SUPPORT,
+    ):
+        await roles.handle_student_menu_button(update, context)
+        return True
+
+    if text == BTN_SUBSCRIPTION:
+        await roles.show_subscription(update, context)
+        return True
+
+    if text in (BTN_PLAN_BASIC, BTN_PLAN_PLUS, BTN_PLAN_PRO):
+        await roles.handle_plan_choice(update, context)
+        return True
+
+    return False
 
 
 def _is_deep_mode(profile: str | None, mode: str | None) -> bool:
@@ -43,6 +133,12 @@ async def handle_message(
     - обновляем историю и usage.
     """
     if not update.message or not update.message.text:
+        return
+
+    # Если это была кнопка клавиатуры, но regex-фильтры не поймали её (из-за emoji),
+    # пробуем руками перевести в соответствующий handler.
+    routed = await _route_keyboard_buttons(update, context)
+    if routed:
         return
 
     user_text = update.message.text.strip()
@@ -94,6 +190,15 @@ async def handle_message(
         flags=red_flags,
     )
 
+    if update.effective_chat:
+        try:
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=ChatAction.TYPING,
+            )
+        except Exception:
+            pass
+
     usage_info: dict = {}
 
     track(
@@ -110,16 +215,38 @@ async def handle_message(
         red_flags=red_flags,
     )
 
-    answer = await ask_deepseek(
-        ai_input,
-        role=role_desc,
-        mode=mode or "",
-        doc_type=doc_type,
-        emotion=emotion,
-        red_flags=red_flags,
-        usage_tracker=usage_info,
-        plan=plan,
-    )
+    # Сообщаем пользователю, что идёт генерация ответа.
+    try:
+        await update.message.reply_text(
+            "Генерирую ответ, это может занять некоторое время ... ⏳"
+        )
+    except Exception:
+        pass
+
+    try:
+        answer = await ask_deepseek(
+            ai_input,
+            role=role_desc,
+            mode=mode or "",
+            doc_type=doc_type,
+            emotion=emotion,
+            red_flags=red_flags,
+            usage_tracker=usage_info,
+            plan=plan,
+        )
+    except Exception as e:
+        print(f"DeepSeek error: {e}")
+        await update.message.reply_text(
+            "Не удалось обработать запрос. Попробуйте ещё раз чуть позже."
+        )
+        return
+    answer = strip_markdown_artifacts(answer)
+    answer = strip_control_chars(answer)
+    if not answer.strip():
+        answer = (
+            "Не смог сформировать ответ. Попробуйте, пожалуйста, ещё раз "
+            "или переформулируйте запрос."
+        )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
     track(

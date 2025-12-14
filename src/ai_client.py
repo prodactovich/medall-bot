@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
@@ -65,22 +66,35 @@ async def ask_deepseek(
         "Content-Type": "application/json",
     }
 
+    timeout = aiohttp.ClientTimeout(total=75, connect=15)
+    max_attempts = 3
+
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                DEEPSEEK_URL,
-                json=payload,
-                headers=headers,
-                timeout=60,
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    async with session.post(
+                        DEEPSEEK_URL,
+                        json=payload,
+                        headers=headers,
+                    ) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
+                        break
+                except (aiohttp.ClientError, asyncio.TimeoutError):
+                    if attempt == max_attempts:
+                        raise
+                    await asyncio.sleep(2**attempt)
     except aiohttp.ClientResponseError as e:
         return (
             "DeepSeek вернул ошибку при обработке запроса. " f"Код: {e.status}"
         )
-    except Exception as e:  # noqa: B902
-        return f"Произошла сетевая ошибка при обращении к ИИ: {e}"
+    except Exception as e:
+        return (
+            "Произошла сетевая ошибка при обращении к ИИ. "
+            "Попробуйте ещё раз или проверьте интернет/прокси. "
+            f"Детали: {e}"
+        )
 
     try:
         answer = data["choices"][0]["message"]["content"]

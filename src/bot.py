@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from telegram.error import Conflict, Forbidden
 from telegram.ext import ApplicationBuilder
 
 from src.config import TELEGRAM_TOKEN
@@ -20,7 +21,15 @@ from src.handlers.text_handler import text_handler
 
 
 def main() -> None:
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    # Explicitly set longer timeouts to avoid connect/read timeouts on slow networks.
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .connect_timeout(30)
+        .read_timeout(30)
+        .pool_timeout(30)
+        .build()
+    )
 
     # /start
     app.add_handler(start_handler)
@@ -47,6 +56,15 @@ def main() -> None:
     # контент
     app.add_handler(photo_handler)
     app.add_handler(text_handler)
+
+    async def handle_errors(update, context):
+        # Игнорируем ситуации, когда пользователь заблокировал бота
+        # или чат больше недоступен, чтобы не падать на отправке сообщений.
+        if isinstance(context.error, (Forbidden, Conflict)):
+            return
+        raise context.error
+
+    app.add_error_handler(handle_errors)
 
     print("MedAll бот запущен…")
     app.run_polling()

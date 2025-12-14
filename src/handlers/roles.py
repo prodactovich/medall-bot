@@ -5,7 +5,6 @@ import re
 from typing import Optional
 
 from telegram import Update
-from telegram.constants import ChatAction
 from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from domain.enums import PlanCode
@@ -66,22 +65,10 @@ def set_user_plan(context: ContextTypes.DEFAULT_TYPE, plan: PlanType) -> None:
     context.user_data["plan"] = PlanCode(plan)
 
 
-async def _send_typing(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Показывает индикатор набора текста до отправки ответа."""
-    chat = update.effective_chat
-    if not chat:
-        return
-    try:
-        await context.bot.send_chat_action(
-            chat_id=chat.id,
-            action=ChatAction.TYPING,
-        )
-    except Exception:
-        # не падаем на ошибке отправки action
-        pass
+def _buttons_regex(*buttons: str) -> str:
+    """Безопасный regex для кнопок с эмодзи/символами."""
+    escaped = [re.escape(btn) for btn in buttons]
+    return f"^({'|'.join(escaped)})$"
 
 
 async def _delete_intro_if_any(
@@ -106,7 +93,6 @@ async def _delete_intro_if_any(
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await _send_typing(update, context)
     context.user_data.setdefault("plan", PLAN_BASIC)
     context.user_data.pop("profile_type", None)
     context.user_data.pop("doctor_specialty", None)
@@ -144,7 +130,6 @@ async def handle_role_choice(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     text = update.message.text
     plan = get_user_plan(context)
     await _delete_intro_if_any(update, context)
@@ -191,7 +176,7 @@ async def handle_role_choice(
 
 role_handler = MessageHandler(
     filters.Regex(
-        f"^{ROLE_PATIENT}$|^{ROLE_STUDENT}$|^{ROLE_DOCTOR}$|^{ROLE_HELP}$"
+        _buttons_regex(ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_HELP)
     ),
     handle_role_choice,
 )
@@ -204,7 +189,6 @@ async def handle_doctor_specialty(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     spec = update.message.text
     plan = get_user_plan(context)
 
@@ -240,7 +224,6 @@ async def handle_back_to_role(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     context.user_data.pop("profile_type", None)
     context.user_data.pop("mode", None)
     await update.message.reply_text(
@@ -250,7 +233,7 @@ async def handle_back_to_role(
 
 
 back_to_role_handler = MessageHandler(
-    filters.Regex(f"^{BTN_BACK_TO_ROLE}$"),
+    filters.Regex(_buttons_regex(BTN_BACK_TO_ROLE)),
     handle_back_to_role,
 )
 
@@ -262,7 +245,6 @@ async def handle_patient_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     text = update.message.text
     plan = get_user_plan(context)
 
@@ -326,8 +308,12 @@ async def handle_patient_menu_button(
 
 patient_menu_handler = MessageHandler(
     filters.Regex(
-        f"^{PAT_BTN_THESIS}$|^{PAT_BTN_DEEP}$|"
-        f"^{PAT_BTN_HISTORY}$|^{PAT_BTN_ACTIONS}$"
+        _buttons_regex(
+            PAT_BTN_THESIS,
+            PAT_BTN_DEEP,
+            PAT_BTN_HISTORY,
+            PAT_BTN_ACTIONS,
+        )
     ),
     handle_patient_menu_button,
 )
@@ -340,7 +326,6 @@ async def handle_doctor_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     text = update.message.text
     if context.user_data.get("profile_type") != "doctor":
         return
@@ -396,9 +381,13 @@ async def handle_doctor_menu_button(
 
 doctor_menu_handler = MessageHandler(
     filters.Regex(
-        f"^{DOC_BTN_GUIDELINES}$|^{DOC_BTN_DRUGS}$|"
-        f"^{DOC_BTN_PATIENT_EXPL}$|^{DOC_BTN_FOREIGN}$|"
-        f"^{DOC_BTN_SUPPORT}$"
+        _buttons_regex(
+            DOC_BTN_GUIDELINES,
+            DOC_BTN_DRUGS,
+            DOC_BTN_PATIENT_EXPL,
+            DOC_BTN_FOREIGN,
+            DOC_BTN_SUPPORT,
+        )
     ),
     handle_doctor_menu_button,
 )
@@ -411,7 +400,6 @@ async def handle_student_menu_button(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     text = update.message.text
     if context.user_data.get("profile_type") != "student":
         return
@@ -464,9 +452,13 @@ async def handle_student_menu_button(
 
 student_menu_handler = MessageHandler(
     filters.Regex(
-        f"^{ST_BTN_EXPLAIN}$|^{ST_BTN_TRAIN}$|"
-        f"^{ST_BTN_TESTS}$|^{ST_BTN_ESSAY}$|"
-        f"^{ST_BTN_SUPPORT}$"
+        _buttons_regex(
+            ST_BTN_EXPLAIN,
+            ST_BTN_TRAIN,
+            ST_BTN_TESTS,
+            ST_BTN_ESSAY,
+            ST_BTN_SUPPORT,
+        )
     ),
     handle_student_menu_button,
 )
@@ -479,7 +471,6 @@ async def show_subscription(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     plan = get_user_plan(context)
 
     current = {
@@ -520,7 +511,7 @@ async def show_subscription(
 
 
 subscription_handler = MessageHandler(
-    filters.Regex(f"^{BTN_SUBSCRIPTION}$"),
+    filters.Regex(_buttons_regex(BTN_SUBSCRIPTION)),
     show_subscription,
 )
 
@@ -529,7 +520,6 @@ async def handle_plan_choice(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     text = update.message.text
 
     if text == BTN_PLAN_BASIC:
@@ -563,7 +553,7 @@ async def handle_plan_choice(
 
 
 plan_choice_handler = MessageHandler(
-    filters.Regex(f"^{BTN_PLAN_BASIC}$|^{BTN_PLAN_PLUS}$|^{BTN_PLAN_PRO}$"),
+    filters.Regex(_buttons_regex(BTN_PLAN_BASIC, BTN_PLAN_PLUS, BTN_PLAN_PRO)),
     handle_plan_choice,
 )
 
@@ -575,7 +565,6 @@ async def show_help(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    await _send_typing(update, context)
     profile = context.user_data.get("profile_type")
 
     if profile == "doctor":
@@ -617,6 +606,6 @@ async def show_help(
 
 
 help_handler = MessageHandler(
-    filters.Regex(f"^{ROLE_HELP}$"),
+    filters.Regex(_buttons_regex(ROLE_HELP)),
     show_help,
 )

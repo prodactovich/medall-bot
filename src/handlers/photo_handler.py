@@ -21,8 +21,32 @@ from src.quota import (
     can_process_document,
     register_document,
 )
+from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
 from src.vision_client import image_to_text
+
+
+async def _typing_keeper(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    stop_event: asyncio.Event,
+) -> None:
+    """Периодически шлём статус 'печатает', пока идёт обработка фото."""
+    try:
+        while not stop_event.is_set():
+            try:
+                await context.bot.send_chat_action(
+                    chat_id=chat_id, action=ChatAction.TYPING
+                )
+            except Exception:
+                return
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=4)
+            except asyncio.TimeoutError:
+                continue
+    finally:
+        stop_event.set()
+
 
 TEMP_DIR = "tmp"
 os.makedirs(TEMP_DIR, exist_ok=True)
@@ -34,6 +58,8 @@ async def handle_photo(
     message = update.message
     if not message:
         return
+    typing_stop: asyncio.Event | None = None
+    typing_task: asyncio.Task | None = None
 
     request_id = new_request_id()
     session_id = ensure_session_id(context)
@@ -49,6 +75,12 @@ async def handle_photo(
         chat_id=message.chat_id,
         action=ChatAction.UPLOAD_PHOTO,
     )
+
+    if message.chat_id:
+        typing_stop = asyncio.Event()
+        typing_task = asyncio.create_task(
+            _typing_keeper(context, message.chat_id, typing_stop)
+        )
 
     photo = message.photo[-1]
     file = await photo.get_file()
@@ -119,6 +151,7 @@ async def handle_photo(
             usage_tracker=usage_info,
             plan=plan,
         )
+        explanation = strip_markdown_artifacts(explanation)
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
         track(
@@ -137,8 +170,15 @@ async def handle_photo(
             latency_ms=latency_ms,
         )
 
+        explanation_clean = strip_control_chars(explanation)
+        if not explanation_clean.strip():
+            explanation_clean = (
+                "Не смог сформировать ответ. Попробуйте, пожалуйста, ещё раз "
+                "или переформулируйте запрос."
+            )
+
         reply_text = (
-            f"{explanation}\n\n"
+            f"{explanation_clean}\n\n"
             "Если нужно, можно прислать ещё один документ или задать уточняющий вопрос."
         )
 
@@ -150,6 +190,10 @@ async def handle_photo(
             "Не удалось обработать изображение. Попробуйте, пожалуйста, чуть позже."
         )
     finally:
+        if typing_stop:
+            typing_stop.set()
+        if typing_task:
+            await typing_task
         try:
             os.remove(file_path)
         except OSError:
