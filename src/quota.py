@@ -1,35 +1,9 @@
-import os
-import sqlite3
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "medall.db")
+from src.db.models import QuotaSnapshot, UsageStats
+from src.db.session import get_session
+
 MAX_DOCS_PER_MONTH = 12  # basic-тариф
-
-
-def _get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    # таблица лимитов по документам
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_quota (
-            user_id INTEGER NOT NULL,
-            month   TEXT    NOT NULL,
-            docs_used INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (user_id, month)
-        )
-        """
-    )
-    # таблица общей статистики использования символов
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS usage_stats (
-            month TEXT PRIMARY KEY,
-            input_chars INTEGER NOT NULL DEFAULT 0,
-            output_chars INTEGER NOT NULL DEFAULT 0
-        )
-        """
-    )
-    return conn
 
 
 def _current_month() -> str:
@@ -45,18 +19,30 @@ def current_month() -> str:
 # ===== ЛИМИТ ДОКУМЕНТОВ (Basic) =====
 
 
+def _get_or_create_quota(session, user_id: int, month: str) -> QuotaSnapshot:
+    snapshot = (
+        session.query(QuotaSnapshot)
+        .filter(QuotaSnapshot.user_id == user_id, QuotaSnapshot.month == month)
+        .first()
+    )
+    if not snapshot:
+        snapshot = QuotaSnapshot(user_id=user_id, month=month)
+        session.add(snapshot)
+        session.flush()
+    return snapshot
+
+
 def get_docs_used(user_id: int) -> int:
     month = _current_month()
-    conn = _get_conn()
-    try:
-        cur = conn.execute(
-            "SELECT docs_used FROM user_quota WHERE user_id=? AND month=?",
-            (user_id, month),
+    with get_session() as session:
+        snapshot = (
+            session.query(QuotaSnapshot)
+            .filter(
+                QuotaSnapshot.user_id == user_id, QuotaSnapshot.month == month
+            )
+            .first()
         )
-        row = cur.fetchone()
-        return row[0] if row else 0
-    finally:
-        conn.close()
+        return snapshot.used_docs if snapshot else 0
 
 
 def can_process_document(user_id: int) -> bool:
@@ -66,30 +52,10 @@ def can_process_document(user_id: int) -> bool:
 
 def register_document(user_id: int) -> None:
     month = _current_month()
-    conn = _get_conn()
-    try:
-        cur = conn.execute(
-            "SELECT docs_used FROM user_quota WHERE user_id=? AND month=?",
-            (user_id, month),
-        )
-        row = cur.fetchone()
-
-        if row:
-            docs_used = row[0] + 1
-            conn.execute(
-                "UPDATE user_quota SET docs_used=? WHERE user_id=? AND month=?",
-                (docs_used, user_id, month),
-            )
-        else:
-            docs_used = 1
-            conn.execute(
-                "INSERT INTO user_quota (user_id, month, docs_used) VALUES (?, ?, ?)",
-                (user_id, month, docs_used),
-            )
-
-        conn.commit()
-    finally:
-        conn.close()
+    with get_session() as session:
+        snapshot = _get_or_create_quota(session, user_id, month)
+        snapshot.used_docs = (snapshot.used_docs or 0) + 1
+        session.add(snapshot)
 
 
 # ===== УЧЁТ СИМВОЛОВ / ТОКЕНОВ =====
@@ -98,33 +64,16 @@ def register_document(user_id: int) -> None:
 def register_usage(input_chars: int, output_chars: int) -> None:
     """Копим статистику по использованным символам за месяц."""
     month = _current_month()
-    conn = _get_conn()
-    try:
-        cur = conn.execute(
-            "SELECT input_chars, output_chars FROM usage_stats WHERE month=?",
-            (month,),
-        )
-        row = cur.fetchone()
+    with get_session() as session:
+        stats = session.get(UsageStats, month)
+        if not stats:
+            stats = UsageStats(month=month, input_chars=0, output_chars=0)
+            session.add(stats)
+            session.flush()
 
-        if row:
-            in_chars = row[0] + input_chars
-            out_chars = row[1] + output_chars
-            conn.execute(
-                "UPDATE usage_stats "
-                "SET input_chars=?, output_chars=? "
-                "WHERE month=?",
-                (in_chars, out_chars, month),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO usage_stats (month, input_chars, output_chars) "
-                "VALUES (?, ?, ?)",
-                (month, input_chars, output_chars),
-            )
-
-        conn.commit()
-    finally:
-        conn.close()
+        stats.input_chars = (stats.input_chars or 0) + input_chars
+        stats.output_chars = (stats.output_chars or 0) + output_chars
+        session.add(stats)
 
 
 def get_month_usage(month: str = None) -> tuple[int, int]:
@@ -132,15 +81,8 @@ def get_month_usage(month: str = None) -> tuple[int, int]:
     if month is None:
         month = _current_month()
 
-    conn = _get_conn()
-    try:
-        cur = conn.execute(
-            "SELECT input_chars, output_chars FROM usage_stats WHERE month=?",
-            (month,),
-        )
-        row = cur.fetchone()
-        if not row:
+    with get_session() as session:
+        stats = session.get(UsageStats, month)
+        if not stats:
             return 0, 0
-        return int(row[0]), int(row[1])
-    finally:
-        conn.close()
+        return int(stats.input_chars or 0), int(stats.output_chars or 0)

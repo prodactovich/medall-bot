@@ -6,6 +6,14 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+try:
+    from src.db.models import EventLog
+    from src.db.session import get_session
+except Exception:
+    # База может быть недоступна (например, в раннем MVP или на тестах)
+    EventLog = None
+    get_session = None
+
 LOG_PATH = Path(__file__).resolve().parent / "analytics.jsonl"
 
 
@@ -46,3 +54,19 @@ def track(
     except Exception:
         # Логирование не должно ломать бота
         pass
+
+    # Пишем дублирующую запись в БД, если доступен слой данных
+    if EventLog and get_session:
+        try:
+            with get_session() as session:
+                session.add(
+                    EventLog(
+                        event=event,
+                        user_id=user_id,
+                        session_id=session_id,
+                        payload=fields or {},
+                    )
+                )
+        except Exception:
+            # Не блокируем приложение, если БД временно недоступна
+            pass

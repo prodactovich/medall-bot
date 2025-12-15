@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.vscode/
+venv/
+*.pyc
+*.pyo
+*.db
+*.sqlite
+tmp/
+cats_videos.mp4

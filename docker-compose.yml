@@ -1,0 +1,16 @@
+services:
+  bot:
+    build: .
+    container_name: medall-bot
+    env_file:
+      - .env
+    environment:
+      INTRO_VIDEO_PATH: /app/cats_videos.mp4
+    # Храним SQLite-файл в volume, чтобы не потерять данные при пересборке
+    volumes:
+      - sqlite_data:/app
+      - ./cats_videos.mp4:/app/cats_videos.mp4:ro
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
