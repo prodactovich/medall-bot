@@ -22,8 +22,7 @@ from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
     BTN_PLAN_BASIC,
-    BTN_PLAN_PLUS,
-    BTN_PLAN_PRO,
+    BTN_PLAN_PREMIUM,
     BTN_SUBSCRIPTION,
     DOC_BTN_DRUGS,
     DOC_BTN_FOREIGN,
@@ -102,7 +101,7 @@ async def _route_keyboard_buttons(
         await roles.show_subscription(update, context)
         return True
 
-    if text in (BTN_PLAN_BASIC, BTN_PLAN_PLUS, BTN_PLAN_PRO):
+    if text in (BTN_PLAN_BASIC, BTN_PLAN_PREMIUM):
         await roles.handle_plan_choice(update, context)
         return True
 
@@ -288,6 +287,6 @@ async def handle_message(
 
 
 text_handler = MessageHandler(
-    filters.TEXT & ~filters.COMMAND,
+    filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND,
     handle_message,
 )

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from telegram.ext import ContextTypes
 
-from .roles import PLAN_BASIC, PLAN_PLUS, PLAN_PRO
+from .roles import PLAN_BASIC, PLAN_PRO
 
 
 def build_role_description(
@@ -24,8 +24,7 @@ def build_role_description(
     """
     plan_label = {
         PLAN_BASIC: "MedAll BASIC",
-        PLAN_PLUS: "MedAll PLUS",
-        PLAN_PRO: "MedAll PRO",
+        PLAN_PRO: "MedAll PREMIUM",
     }.get(plan, "MedAll BASIC")
 
     if profile == "patient":

@@ -9,7 +9,6 @@ class RoleCode(StrEnum):
 
 class PlanCode(StrEnum):
     BASIC = "basic"
-    PLUS = "plus"
     PRO = "pro"
 
 

@@ -2,17 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from src.handlers.roles import PLAN_BASIC, PLAN_PLUS, PLAN_PRO
+from src.handlers.roles import PLAN_BASIC, PLAN_PRO
 
 # Базовые лимиты по планам (на сессию пользователя)
 PLAN_LIMITS: Dict[str, Dict[str, Any]] = {
     PLAN_BASIC: {
         "docs": 10,  # сколько запросов к ИИ за сессию
         "deep": 2,  # сколько глубоких разборов (patient_deep) за сессию
-    },
-    PLAN_PLUS: {
-        "docs": 50,
-        "deep": 9999,
     },
     PLAN_PRO: {
         "docs": None,  # None = без ограничений

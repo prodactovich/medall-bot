@@ -8,7 +8,7 @@ def docs_limit_reached() -> str:
         "Вы использовали доступный лимит разборов для вашего уровня "
         "подписки.\n\n"
         "Можно продолжать пользоваться базовыми функциями или открыть "
-        "MedAll PLUS / PRO в разделе подписки."
+        "MedAll PREMIUM в разделе подписки."
     )
 
 
@@ -16,7 +16,7 @@ def deep_limit_reached() -> str:
     return (
         "Лимит глубоких разборов в текущем уровне подписки исчерпан.\n\n"
         "Вы можете переключиться в режим тезисного объяснения или "
-        "рассмотреть подключение MedAll PRO для расширенного анализа."
+        "рассмотреть подключение MedAll PREMIUM для расширенного анализа."
     )
 
 
@@ -25,7 +25,7 @@ def monthly_docs_limit(max_docs: int) -> str:
         "⚠️ Лимит обработки документов на этот месяц исчерпан.\n\n"
         f"Сейчас в базовом тарифе доступно до {max_docs} документов "
         "в месяц на одного пользователя.\n"
-        "Расширенный Pro-тариф пока в разработке."
+        "Расширенный Premium-тариф пока в разработке."
     )
 
 
@@ -184,13 +184,11 @@ def student_mode_text(key: str) -> str:
 def subscription_text(current_plan: str) -> str:
     labels = {
         "basic": "🟢 MEDALL BASIC — бесплатно",
-        "plus": "💰 MEDALL PLUS — расширенные возможности",
-        "pro": "🏆 MEDALL PRO — максимум анализа и поддержки",
+        "pro": "💎 MEDALL PREMIUM — максимум анализа и поддержки",
     }
     current_label = {
         "basic": "🟢 BASIC",
-        "plus": "💰 PLUS",
-        "pro": "🏆 PRO",
+        "pro": "💎 PREMIUM",
     }.get(current_plan, current_plan)
 
     return (
@@ -202,11 +200,6 @@ def subscription_text(current_plan: str) -> str:
         "• 2 глубоких разбора/мес\n"
         "• OCR: до 3 фото\n"
         "• История: до 10 записей\n\n"
-        f"{labels['plus']}\n"
-        "• Более понятные разъяснения\n"
-        "• Расширенный анализ\n"
-        "• OCR: до 10 фото\n"
-        "• История: до 50 записей\n\n"
         f"{labels['pro']}\n"
         "• Глубокий анализ\n"
         "• Поддерживающий режим\n"
@@ -221,8 +214,7 @@ def subscription_text(current_plan: str) -> str:
 def plan_choice_response(plan_code: str) -> str:
     labels = {
         "basic": "🟢 MedAll BASIC",
-        "plus": "💰 MedAll PLUS",
-        "pro": "🏆 MedAll PRO",
+        "pro": "💎 MedAll PREMIUM",
     }
     chosen = labels.get(plan_code, plan_code)
     return f"Вы выбрали {chosen}.\nНастройки учтены."
@@ -251,7 +243,7 @@ def help_text(profile: str | None) -> str:
         return (
             "Режим пациента 🤒.\n\n"
             "• Тезисно — короткие выводы и ключевые маркёры.\n"
-            "• Глубокий анализ — подробное объяснение (в PRO ещё глубже).\n"
+            "• Глубокий анализ — подробное объяснение (в PREMIUM ещё глубже).\n"
             "• Порядок действий — подготовка к приёму и вопросы врачу.\n"
             "• История — краткие записи по прошлым запросам."
         )

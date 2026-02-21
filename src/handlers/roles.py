@@ -13,8 +13,7 @@ from src.ui import messages
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
     BTN_PLAN_BASIC,
-    BTN_PLAN_PLUS,
-    BTN_PLAN_PRO,
+    BTN_PLAN_PREMIUM,
     BTN_SUBSCRIPTION,
     DOC_BTN_DRUGS,
     DOC_BTN_FOREIGN,
@@ -27,7 +26,7 @@ from src.ui.buttons import (
     PAT_BTN_HISTORY,
     PAT_BTN_THESIS,
     PLAN_BASIC,
-    PLAN_PLUS,
+    PLAN_PREMIUM,
     PLAN_PRO,
     ROLE_DOCTOR,
     ROLE_HELP,
@@ -51,7 +50,12 @@ from src.ui.buttons import (
 def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
     plan = context.user_data.get("plan")
 
-    if plan not in (PlanCode.BASIC, PlanCode.PLUS, PlanCode.PRO):
+    # Legacy safety: если в старой сессии остался "plus", считаем его premium.
+    if str(plan) == "plus":
+        plan = PlanCode.PRO
+        context.user_data["plan"] = plan
+
+    if plan not in (PlanCode.BASIC, PlanCode.PRO):
         plan = PlanCode.BASIC
         context.user_data["plan"] = plan
 
@@ -60,7 +64,7 @@ def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
 
 def set_user_plan(context: ContextTypes.DEFAULT_TYPE, plan: PlanType) -> None:
     """Сохраняем выбранный план в user_data с валидацией."""
-    if plan not in (PLAN_BASIC, PLAN_PLUS, PLAN_PRO):
+    if plan not in (PLAN_BASIC, PLAN_PRO):
         plan = PLAN_BASIC
     context.user_data["plan"] = PlanCode(plan)
 
@@ -120,7 +124,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-start_handler = CommandHandler("start", start)
+start_handler = CommandHandler(
+    "start", start, filters=filters.ChatType.PRIVATE
+)
 
 
 # ---------- ВЫБОР РОЛИ ----------
@@ -175,7 +181,8 @@ async def handle_role_choice(
 
 
 role_handler = MessageHandler(
-    filters.Regex(
+    filters.ChatType.PRIVATE
+    & filters.Regex(
         _buttons_regex(ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_HELP)
     ),
     handle_role_choice,
@@ -210,7 +217,8 @@ async def handle_doctor_specialty(
 
 
 doctor_specialty_handler = MessageHandler(
-    filters.Regex(
+    filters.ChatType.PRIVATE
+    & filters.Regex(
         f"^({'|'.join(re.escape(item) for item in DOCTOR_SPECIALTIES)})$"
     ),
     handle_doctor_specialty,
@@ -233,7 +241,7 @@ async def handle_back_to_role(
 
 
 back_to_role_handler = MessageHandler(
-    filters.Regex(_buttons_regex(BTN_BACK_TO_ROLE)),
+    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(BTN_BACK_TO_ROLE)),
     handle_back_to_role,
 )
 
@@ -262,7 +270,7 @@ async def handle_patient_menu_button(
     if text == PAT_BTN_DEEP:
         if plan == PLAN_BASIC:
             await update.message.reply_text(
-                "Глубокий анализ полностью доступен в MedAll PRO.\n"
+                "Глубокий анализ полностью доступен в MedAll PREMIUM.\n"
                 "В BASIC есть ограниченное число глубоких разборов.\n\n"
                 "Чтобы снять ограничения, откройте экран подписки.",
                 reply_markup=build_plan_keyboard(),
@@ -307,7 +315,8 @@ async def handle_patient_menu_button(
 
 
 patient_menu_handler = MessageHandler(
-    filters.Regex(
+    filters.ChatType.PRIVATE
+    & filters.Regex(
         _buttons_regex(
             PAT_BTN_THESIS,
             PAT_BTN_DEEP,
@@ -380,7 +389,8 @@ async def handle_doctor_menu_button(
 
 
 doctor_menu_handler = MessageHandler(
-    filters.Regex(
+    filters.ChatType.PRIVATE
+    & filters.Regex(
         _buttons_regex(
             DOC_BTN_GUIDELINES,
             DOC_BTN_DRUGS,
@@ -451,7 +461,8 @@ async def handle_student_menu_button(
 
 
 student_menu_handler = MessageHandler(
-    filters.Regex(
+    filters.ChatType.PRIVATE
+    & filters.Regex(
         _buttons_regex(
             ST_BTN_EXPLAIN,
             ST_BTN_TRAIN,
@@ -475,8 +486,7 @@ async def show_subscription(
 
     current = {
         PLAN_BASIC: "BASIC",
-        PLAN_PLUS: "PLUS",
-        PLAN_PRO: "PRO",
+        PLAN_PRO: "PREMIUM",
     }[plan]
 
     text = (
@@ -489,12 +499,7 @@ async def show_subscription(
         "• 2 глубоких разбора/мес\n"
         "• OCR: до 3 фото\n"
         "• История: до 10 записей\n\n"
-        "🔵 MEDALL PLUS — условная цена\n"
-        "• Более понятные разъяснения\n"
-        "• Расширенный анализ\n"
-        "• OCR: до 10 фото\n"
-        "• История: до 50 записей\n\n"
-        "🟣 MEDALL PRO — условная цена\n"
+        "💎 MEDALL PREMIUM — условная цена\n"
         "• Глубокий анализ\n"
         "• Поддерживающий режим\n"
         "• OCR без ограничений\n"
@@ -511,7 +516,7 @@ async def show_subscription(
 
 
 subscription_handler = MessageHandler(
-    filters.Regex(_buttons_regex(BTN_SUBSCRIPTION)),
+    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(BTN_SUBSCRIPTION)),
     show_subscription,
 )
 
@@ -525,12 +530,9 @@ async def handle_plan_choice(
     if text == BTN_PLAN_BASIC:
         set_user_plan(context, PLAN_BASIC)
         msg = "Вы выбрали 🟢 MedAll BASIC."
-    elif text == BTN_PLAN_PLUS:
-        set_user_plan(context, PLAN_PLUS)
-        msg = "Вы выбрали 🔵 MedAll PLUS."
-    elif text == BTN_PLAN_PRO:
-        set_user_plan(context, PLAN_PRO)
-        msg = "Вы выбрали 🟣 MedAll PRO."
+    elif text == BTN_PLAN_PREMIUM:
+        set_user_plan(context, PLAN_PREMIUM)
+        msg = "Вы выбрали 💎 MedAll PREMIUM."
     else:
         return
 
@@ -553,7 +555,8 @@ async def handle_plan_choice(
 
 
 plan_choice_handler = MessageHandler(
-    filters.Regex(_buttons_regex(BTN_PLAN_BASIC, BTN_PLAN_PLUS, BTN_PLAN_PRO)),
+    filters.ChatType.PRIVATE
+    & filters.Regex(_buttons_regex(BTN_PLAN_BASIC, BTN_PLAN_PREMIUM)),
     handle_plan_choice,
 )
 
@@ -589,7 +592,7 @@ async def show_help(
         text = (
             "Режим пациента 🤒.\n\n"
             "• Тезисно — короткие выводы и ключевые маркёры.\n"
-            "• Глубокий анализ — подробное объяснение (в PRO ещё глубже).\n"
+            "• Глубокий анализ — подробное объяснение (в PREMIUM ещё глубже).\n"
             "• Порядок действий — подготовка к приёму и вопросы врачу.\n"
             "• История — краткие записи по прошлым запросам."
         )
@@ -606,6 +609,6 @@ async def show_help(
 
 
 help_handler = MessageHandler(
-    filters.Regex(_buttons_regex(ROLE_HELP)),
+    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(ROLE_HELP)),
     show_help,
 )

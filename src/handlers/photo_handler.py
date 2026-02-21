@@ -18,8 +18,7 @@ from src.nlp_utils import (
 )
 from src.quota import (
     MAX_DOCS_PER_MONTH,
-    can_process_document,
-    register_document,
+    consume_document_quota,
 )
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
@@ -66,8 +65,8 @@ async def handle_photo(
     user_id = update.effective_user.id if update.effective_user else None
     t0 = time.perf_counter()
 
-    # лимит basic-тарифа
-    if user_id is not None and not can_process_document(user_id):
+    # Лимит документов списываем атомарно, чтобы исключить race condition.
+    if user_id is not None and not consume_document_quota(user_id):
         await message.reply_text(monthly_docs_limit(MAX_DOCS_PER_MONTH))
         return
 
@@ -97,9 +96,6 @@ async def handle_photo(
                 "я постараюсь помочь ещё раз."
             )
             return
-
-        if user_id is not None:
-            register_document(user_id)
 
         history = context.user_data.get("docs_history", [])
         history.append(text)
@@ -200,4 +196,6 @@ async def handle_photo(
             pass
 
 
-photo_handler = MessageHandler(filters.PHOTO, handle_photo)
+photo_handler = MessageHandler(
+    filters.ChatType.PRIVATE & filters.PHOTO, handle_photo
+)

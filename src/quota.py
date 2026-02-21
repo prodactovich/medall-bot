@@ -1,5 +1,8 @@
 from datetime import datetime
 
+from sqlalchemy import and_, update
+from sqlalchemy.exc import IntegrityError
+
 from src.db.models import QuotaSnapshot, UsageStats
 from src.db.session import get_session
 
@@ -56,6 +59,46 @@ def register_document(user_id: int) -> None:
         snapshot = _get_or_create_quota(session, user_id, month)
         snapshot.used_docs = (snapshot.used_docs or 0) + 1
         session.add(snapshot)
+
+
+def consume_document_quota(user_id: int) -> bool:
+    """
+    Атомарно пытается списать 1 документ из месячной квоты.
+    Возвращает True, если списание успешно, иначе False.
+    """
+    month = _current_month()
+
+    with get_session() as session:
+        stmt = (
+            update(QuotaSnapshot)
+            .where(
+                and_(
+                    QuotaSnapshot.user_id == user_id,
+                    QuotaSnapshot.month == month,
+                    QuotaSnapshot.used_docs < MAX_DOCS_PER_MONTH,
+                )
+            )
+            .values(used_docs=QuotaSnapshot.used_docs + 1)
+        )
+        result = session.execute(stmt)
+        if result.rowcount and result.rowcount > 0:
+            return True
+
+        # Снапшота ещё нет -> создаём первую запись месяца.
+        try:
+            session.add(
+                QuotaSnapshot(user_id=user_id, month=month, used_docs=1)
+            )
+            session.flush()
+            return True
+        except IntegrityError:
+            # Параллельный запрос уже создал запись - пробуем атомарный апдейт ещё раз.
+            session.rollback()
+            with get_session() as retry_session:
+                retry_result = retry_session.execute(stmt)
+                return bool(
+                    retry_result.rowcount and retry_result.rowcount > 0
+                )
 
 
 # ===== УЧЁТ СИМВОЛОВ / ТОКЕНОВ =====

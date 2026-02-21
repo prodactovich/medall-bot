@@ -5,3 +5,4 @@ venv/
 .mypy_cache/
 tmp/
 medall.db
+medall.db-journal

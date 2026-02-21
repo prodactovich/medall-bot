@@ -4,7 +4,7 @@ from typing import Literal
 
 from telegram import ReplyKeyboardMarkup
 
-PlanType = Literal["basic", "plus", "pro"]
+PlanType = Literal["basic", "pro"]
 
 # ---------- Общие кнопки ----------
 
@@ -19,12 +19,11 @@ BTN_SUBSCRIPTION = "💳 Подписка MedAll"
 # ---------- Тарифы ----------
 
 PLAN_BASIC: PlanType = "basic"
-PLAN_PLUS: PlanType = "plus"
 PLAN_PRO: PlanType = "pro"
+PLAN_PREMIUM: PlanType = PLAN_PRO
 
 BTN_PLAN_BASIC = "🪙 MedAll BASIC"
-BTN_PLAN_PLUS = "💰 MedAll PLUSS"
-BTN_PLAN_PRO = "💎 MedAll PRO"
+BTN_PLAN_PREMIUM = "💎 MedAll PREMIUM"
 
 # ---------- Пациент ----------
 
@@ -125,8 +124,7 @@ def build_doctor_specialties_keyboard() -> ReplyKeyboardMarkup:
 def build_plan_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [BTN_PLAN_BASIC],
-        [BTN_PLAN_PLUS],
-        [BTN_PLAN_PRO],
+        [BTN_PLAN_PREMIUM],
         [BTN_BACK_TO_ROLE],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
