@@ -20,6 +20,7 @@ from src.quota import (
     MAX_DOCS_PER_MONTH,
     consume_document_quota,
 )
+from src.security import OCR_SEMAPHORE, check_rate_limit
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
 from src.vision_client import image_to_text
@@ -49,6 +50,8 @@ async def _typing_keeper(
 
 TEMP_DIR = "tmp"
 os.makedirs(TEMP_DIR, exist_ok=True)
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+PHOTO_RATE_LIMIT_PER_MIN = 6
 
 
 async def handle_photo(
@@ -64,6 +67,21 @@ async def handle_photo(
     session_id = ensure_session_id(context)
     user_id = update.effective_user.id if update.effective_user else None
     t0 = time.perf_counter()
+
+    if user_id is not None:
+        allowed, retry_after = check_rate_limit(
+            context,
+            user_id=user_id,
+            channel="photo",
+            limit=PHOTO_RATE_LIMIT_PER_MIN,
+            window_seconds=60,
+        )
+        if not allowed:
+            await message.reply_text(
+                "Слишком много фото за короткое время.\n"
+                f"Попробуйте снова через {retry_after} сек."
+            )
+            return
 
     # Лимит документов списываем атомарно, чтобы исключить race condition.
     if user_id is not None and not consume_document_quota(user_id):
@@ -82,12 +100,19 @@ async def handle_photo(
         )
 
     photo = message.photo[-1]
+    if photo.file_size and photo.file_size > MAX_PHOTO_BYTES:
+        await message.reply_text(
+            "Файл слишком большой для обработки.\n"
+            "Пожалуйста, отправьте изображение до 10 МБ."
+        )
+        return
     file = await photo.get_file()
     file_path = os.path.join(TEMP_DIR, f"{file.file_unique_id}.jpg")
     await file.download_to_drive(file_path)
 
     try:
-        text = await asyncio.to_thread(image_to_text, file_path, "rus")
+        async with OCR_SEMAPHORE:
+            text = await asyncio.to_thread(image_to_text, file_path, "rus")
 
         if not text.strip():
             await message.reply_text(

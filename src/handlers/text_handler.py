@@ -18,6 +18,7 @@ from src.nlp_utils import (
     detect_red_flags,
     detect_user_emotion,
 )
+from src.security import check_rate_limit
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
@@ -45,6 +46,9 @@ from src.ui.buttons import (
     ST_BTN_TRAIN,
 )
 from src.ui.messages import deep_limit_reached, docs_limit_reached
+
+MAX_TEXT_CHARS = 12_000
+TEXT_RATE_LIMIT_PER_MIN = 12
 
 
 async def _route_keyboard_buttons(
@@ -143,6 +147,12 @@ async def handle_message(
     user_text = update.message.text.strip()
     if not user_text:
         return
+    if len(user_text) > MAX_TEXT_CHARS:
+        await update.message.reply_text(
+            "Сообщение слишком длинное для безопасной обработки.\n"
+            f"Пожалуйста, сократите текст до {MAX_TEXT_CHARS} символов."
+        )
+        return
 
     profile = context.user_data.get("profile_type")
     mode = context.user_data.get("mode")
@@ -160,6 +170,21 @@ async def handle_message(
     session_id = ensure_session_id(context)
     user_id = update.effective_user.id if update.effective_user else None
     t0 = time.perf_counter()
+
+    if user_id is not None:
+        allowed, retry_after = check_rate_limit(
+            context,
+            user_id=user_id,
+            channel="text",
+            limit=TEXT_RATE_LIMIT_PER_MIN,
+            window_seconds=60,
+        )
+        if not allowed:
+            await update.message.reply_text(
+                "Слишком много запросов за короткое время.\n"
+                f"Попробуйте снова через {retry_after} сек."
+            )
+            return
 
     limits = get_limits(plan)
     usage = ensure_usage(context)

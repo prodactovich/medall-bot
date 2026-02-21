@@ -483,31 +483,7 @@ async def show_subscription(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     plan = get_user_plan(context)
-
-    current = {
-        PLAN_BASIC: "BASIC",
-        PLAN_PRO: "PREMIUM",
-    }[plan]
-
-    text = (
-        "💳 MedAll — уровни подписки\n\n"
-        "Текущий уровень: "
-        f"{current}\n\n"
-        "🟢 MEDALL BASIC — бесплатно\n"
-        "• Простые разъяснения\n"
-        "• Стандартный формат\n"
-        "• 2 глубоких разбора/мес\n"
-        "• OCR: до 3 фото\n"
-        "• История: до 10 записей\n\n"
-        "💎 MEDALL PREMIUM — условная цена\n"
-        "• Глубокий анализ\n"
-        "• Поддерживающий режим\n"
-        "• OCR без ограничений\n"
-        "• История без лимита\n"
-        "• Экспорт PDF и доп. инструменты\n\n"
-        "Сейчас можно выбрать уровень (пока без реальной оплаты, "
-        "для тестирования логики подписок)."
-    )
+    text = messages.subscription_text(str(plan))
 
     await update.message.reply_text(
         text,
