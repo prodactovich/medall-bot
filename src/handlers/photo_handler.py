@@ -123,7 +123,7 @@ async def handle_photo(
             return
 
         history = context.user_data.get("docs_history", [])
-        history.append(text)
+        history.append(text[:500])
         context.user_data["docs_history"] = history
 
         doc_type = detect_doc_type(text)
