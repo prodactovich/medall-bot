@@ -101,6 +101,100 @@ def consume_document_quota(user_id: int) -> bool:
                 )
 
 
+def get_ocr_bonus_state(user_id: int) -> tuple[int, bool]:
+    month = _current_month()
+    with get_session() as session:
+        snapshot = (
+            session.query(QuotaSnapshot)
+            .filter(
+                QuotaSnapshot.user_id == user_id,
+                QuotaSnapshot.month == month,
+            )
+            .first()
+        )
+        if not snapshot:
+            return 0, False
+        return int(snapshot.bonus_ocr_left or 0), bool(
+            snapshot.bonus_ocr_granted
+        )
+
+
+def consume_ocr_bonus_document(user_id: int) -> bool:
+    """
+    Атомарно списывает 1 бонусный OCR-слот.
+    """
+    month = _current_month()
+    with get_session() as session:
+        stmt = (
+            update(QuotaSnapshot)
+            .where(
+                and_(
+                    QuotaSnapshot.user_id == user_id,
+                    QuotaSnapshot.month == month,
+                    QuotaSnapshot.bonus_ocr_left > 0,
+                )
+            )
+            .values(bonus_ocr_left=QuotaSnapshot.bonus_ocr_left - 1)
+        )
+        result = session.execute(stmt)
+        return bool(result.rowcount and result.rowcount > 0)
+
+
+def restore_ocr_bonus_document(user_id: int) -> None:
+    """
+    Возвращает бонусный OCR-слот при неуспешной обработке.
+    """
+    month = _current_month()
+    with get_session() as session:
+        stmt = (
+            update(QuotaSnapshot)
+            .where(
+                and_(
+                    QuotaSnapshot.user_id == user_id,
+                    QuotaSnapshot.month == month,
+                    QuotaSnapshot.bonus_ocr_granted.is_(True),
+                )
+            )
+            .values(bonus_ocr_left=QuotaSnapshot.bonus_ocr_left + 1)
+        )
+        session.execute(stmt)
+
+
+def grant_ocr_bonus_for_feedback(user_id: int, bonus_docs: int) -> bool:
+    """
+    Выдаёт бонусные OCR-слоты 1 раз в месяц после исчерпания основного лимита.
+    """
+    month = _current_month()
+
+    with get_session() as session:
+        stmt = (
+            update(QuotaSnapshot)
+            .where(
+                and_(
+                    QuotaSnapshot.user_id == user_id,
+                    QuotaSnapshot.month == month,
+                    QuotaSnapshot.used_docs >= MAX_DOCS_PER_MONTH,
+                    QuotaSnapshot.bonus_ocr_granted.is_(False),
+                )
+            )
+            .values(
+                bonus_ocr_left=bonus_docs,
+                bonus_ocr_granted=True,
+            )
+        )
+        result = session.execute(stmt)
+        if result.rowcount and result.rowcount > 0:
+            return True
+
+        # Если снапшота нет (редкий случай), создаём запись без возможности бонуса.
+        try:
+            session.add(QuotaSnapshot(user_id=user_id, month=month))
+            session.flush()
+        except IntegrityError:
+            session.rollback()
+        return False
+
+
 # ===== УЧЁТ СИМВОЛОВ / ТОКЕНОВ =====
 
 

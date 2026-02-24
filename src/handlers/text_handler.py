@@ -18,6 +18,12 @@ from src.nlp_utils import (
     detect_red_flags,
     detect_user_emotion,
 )
+from src.quota import (
+    MAX_DOCS_PER_MONTH,
+    get_docs_used,
+    get_ocr_bonus_state,
+    grant_ocr_bonus_for_feedback,
+)
 from src.security import check_rate_limit
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
@@ -49,6 +55,74 @@ from src.ui.messages import deep_limit_reached, docs_limit_reached
 
 MAX_TEXT_CHARS = 12_000
 TEXT_RATE_LIMIT_PER_MIN = 12
+BONUS_OCR_DOCS = 2
+FEEDBACK_PREFIXES = ("отзыв:", "feedback:")
+
+
+async def _maybe_grant_ocr_bonus_for_feedback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    if not update.message or not update.message.text:
+        return False
+
+    user_text = update.message.text.strip()
+    lower = user_text.lower()
+    if not any(lower.startswith(prefix) for prefix in FEEDBACK_PREFIXES):
+        return False
+
+    user_id = update.effective_user.id if update.effective_user else None
+    if user_id is None:
+        return False
+
+    feedback_body = (
+        user_text.split(":", 1)[1].strip() if ":" in user_text else ""
+    )
+    if len(feedback_body) < 20:
+        await update.message.reply_text(
+            "Чтобы получить бонус, отзыв должен быть чуть подробнее "
+            "(минимум 20 символов после 'Отзыв:')."
+        )
+        return True
+
+    bonus_left, bonus_granted = get_ocr_bonus_state(user_id)
+    if bonus_granted:
+        if bonus_left > 0:
+            await update.message.reply_text(
+                f"Спасибо, бонус уже активен. Осталось OCR-разборов: {bonus_left}."
+            )
+        else:
+            await update.message.reply_text(
+                "Спасибо, бонус за отзыв в этом месяце уже был использован."
+            )
+        return True
+
+    used_docs = get_docs_used(user_id)
+    if used_docs < MAX_DOCS_PER_MONTH:
+        await update.message.reply_text(
+            "Бонус за отзыв активируется после исчерпания месячного OCR-лимита."
+        )
+        return True
+
+    granted = grant_ocr_bonus_for_feedback(user_id, BONUS_OCR_DOCS)
+    if not granted:
+        await update.message.reply_text(
+            "Сейчас не удалось выдать бонус. Попробуйте отправить отзыв ещё раз."
+        )
+        return True
+
+    track(
+        "feedback_submitted",
+        user_id=user_id,
+        session_id=ensure_session_id(context),
+        review_text=feedback_body,
+        bonus_docs=BONUS_OCR_DOCS,
+    )
+
+    await update.message.reply_text(
+        "Спасибо за отзыв. Бонус активирован: +2 OCR-разбора в этом месяце."
+    )
+    return True
 
 
 async def _route_keyboard_buttons(
@@ -142,6 +216,9 @@ async def handle_message(
     # пробуем руками перевести в соответствующий handler.
     routed = await _route_keyboard_buttons(update, context)
     if routed:
+        return
+
+    if await _maybe_grant_ocr_bonus_for_feedback(update, context):
         return
 
     user_text = update.message.text.strip()

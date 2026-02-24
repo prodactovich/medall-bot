@@ -19,6 +19,9 @@ from src.nlp_utils import (
 from src.quota import (
     MAX_DOCS_PER_MONTH,
     consume_document_quota,
+    consume_ocr_bonus_document,
+    get_ocr_bonus_state,
+    restore_ocr_bonus_document,
 )
 from src.security import OCR_SEMAPHORE, check_rate_limit
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
@@ -83,10 +86,27 @@ async def handle_photo(
             )
             return
 
+    bonus_left = 0
+    bonus_granted = False
+    used_bonus = False
+
     # Лимит документов списываем атомарно, чтобы исключить race condition.
-    if user_id is not None and not consume_document_quota(user_id):
-        await message.reply_text(monthly_docs_limit(MAX_DOCS_PER_MONTH))
-        return
+    if user_id is not None:
+        bonus_left, bonus_granted = get_ocr_bonus_state(user_id)
+        if bonus_left > 0 and consume_ocr_bonus_document(user_id):
+            used_bonus = True
+        elif not consume_document_quota(user_id):
+            bonus_hint = (
+                "Вы можете получить ещё 2 OCR-разбора бесплатно.\n"
+                "Напишите отзыв в формате:\n"
+                "Отзыв: ваш текст"
+            )
+            if bonus_granted and bonus_left == 0:
+                bonus_hint = "Бонус за отзыв в этом месяце уже использован."
+            await message.reply_text(
+                monthly_docs_limit(MAX_DOCS_PER_MONTH) + "\n\n" + bonus_hint
+            )
+            return
 
     await context.bot.send_chat_action(
         chat_id=message.chat_id,
@@ -206,6 +226,9 @@ async def handle_photo(
         await message.reply_text(reply_text)
 
     except Exception as e:
+        if used_bonus and user_id is not None:
+            # Возвращаем бонусный слот, если обработка не состоялась.
+            restore_ocr_bonus_document(user_id)
         print(f"OCR/DeepSeek error: {e}")
         await message.reply_text(
             "Не удалось обработать изображение. Попробуйте, пожалуйста, чуть позже."
