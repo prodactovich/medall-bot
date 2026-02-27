@@ -50,11 +50,6 @@ from src.ui.buttons import (
 def get_user_plan(context: ContextTypes.DEFAULT_TYPE) -> PlanCode:
     plan = context.user_data.get("plan")
 
-    # Legacy safety: если в старой сессии остался "plus", считаем его premium.
-    if str(plan) == "plus":
-        plan = PlanCode.PRO
-        context.user_data["plan"] = plan
-
     if plan not in (PlanCode.BASIC, PlanCode.PRO):
         plan = PlanCode.BASIC
         context.user_data["plan"] = plan
