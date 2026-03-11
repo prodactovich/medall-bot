@@ -66,6 +66,33 @@ MAX_TEXT_CHARS = 12_000
 TEXT_RATE_LIMIT_PER_MIN = 12
 BONUS_OCR_DOCS = 2
 FEEDBACK_PREFIXES = ("отзыв:", "feedback:")
+UNDERSTOOD_MARKERS = (
+    "понятно",
+    "теперь понятно",
+    "ясно",
+    "спасибо, понятно",
+    "понял",
+    "поняла",
+)
+
+
+def _is_understanding_signal(text: str) -> bool:
+    t = (text or "").lower().strip(" .,!?:;")
+    return any(marker in t for marker in UNDERSTOOD_MARKERS)
+
+
+def _is_clarifying_question(text: str) -> bool:
+    t = (text or "").lower()
+    if "?" in t:
+        return True
+    starters = (
+        "а если",
+        "что это значит",
+        "правильно ли",
+        "как понять",
+        "это нормально",
+    )
+    return any(t.startswith(prefix) for prefix in starters)
 
 
 async def _maybe_grant_ocr_bonus_for_feedback(
@@ -259,6 +286,22 @@ async def handle_message(
         return
 
     if user_id is not None and profile == "patient":
+        session_id = ensure_session_id(context)
+        if _is_understanding_signal(user_text):
+            track(
+                "understood_confirmed",
+                user_id=user_id,
+                session_id=session_id,
+                role=profile,
+                mode=mode,
+                plan=plan,
+            )
+            await update.message.reply_text(
+                "Отлично, рад, что стало понятнее. "
+                "Если захотите, разберём следующий документ."
+            )
+            return
+
         scenario = mode or "patient_text"
         context.user_data["last_document_text"] = user_text
         set_document_text(
@@ -273,6 +316,18 @@ async def handle_message(
             author="user",
             text=user_text,
         )
+
+        if context.user_data.get(
+            "last_ai_breakdown"
+        ) and _is_clarifying_question(user_text):
+            track(
+                "clarifying_question_asked",
+                user_id=user_id,
+                session_id=session_id,
+                role=profile,
+                mode=mode,
+                plan=plan,
+            )
 
     # трекинг идентификаторов
     request_id = new_request_id()

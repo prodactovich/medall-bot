@@ -1,17 +1,35 @@
 services:
+  postgres:
+    image: postgres:16
+    container_name: medall-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medall}
+      POSTGRES_USER: ${POSTGRES_USER:-medall}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medall}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medall} -d ${POSTGRES_DB:-medall}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   bot:
     build: .
     container_name: medall-bot
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       INTRO_VIDEO_PATH: /app/cats_videos.mp4
-      DATABASE_URL: sqlite:////data/medall.db
-    # Храним SQLite отдельно от кода приложения
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://medall:medall@postgres:5432/medall}
     volumes:
-      - sqlite_data:/data
       - ./cats_videos.mp4:/app/cats_videos.mp4:ro
     restart: unless-stopped
 
 volumes:
-  sqlite_data:
+  postgres_data:
