@@ -6,10 +6,11 @@ from telegram.ext import ApplicationBuilder
 from src.config import TELEGRAM_TOKEN
 from src.handlers.photo_handler import photo_handler
 from src.handlers.roles import (
+    about_handler,
+    back_from_subscription_handler,
     back_to_role_handler,
     doctor_menu_handler,
     doctor_specialty_handler,
-    help_handler,
     patient_menu_handler,
     plan_choice_handler,
     role_handler,
@@ -40,6 +41,7 @@ def main() -> None:
 
     # кнопка "вернуться к выбору роли"
     app.add_handler(back_to_role_handler)
+    app.add_handler(back_from_subscription_handler)
 
     # меню по ролям
     app.add_handler(patient_menu_handler)
@@ -50,8 +52,8 @@ def main() -> None:
     app.add_handler(subscription_handler)
     app.add_handler(plan_choice_handler)
 
-    # help
-    app.add_handler(help_handler)
+    # about
+    app.add_handler(about_handler)
 
     # контент
     app.add_handler(photo_handler)

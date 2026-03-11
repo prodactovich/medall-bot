@@ -12,6 +12,7 @@ from src.config import INTRO_VIDEO_CAPTION, INTRO_VIDEO_PATH
 from src.handlers.patient_actions import run_patient_action
 from src.ui import messages
 from src.ui.buttons import (
+    BTN_BACK_FROM_SUBSCRIPTION,
     BTN_BACK_TO_ROLE,
     BTN_PATIENT_CHANGE_ROLE,
     BTN_PLAN_BASIC,
@@ -25,14 +26,13 @@ from src.ui.buttons import (
     DOCTOR_SPECIALTIES,
     PAT_BTN_24H_PLAN,
     PAT_BTN_EXPLAIN_DOC,
-    PAT_BTN_HISTORY,
     PAT_BTN_QUESTIONS,
     PAT_BTN_URGENCY,
     PLAN_BASIC,
     PLAN_PREMIUM,
     PLAN_PRO,
+    ROLE_ABOUT,
     ROLE_DOCTOR,
-    ROLE_HELP,
     ROLE_PATIENT,
     ROLE_STUDENT,
     ST_BTN_ESSAY,
@@ -71,6 +71,19 @@ def _buttons_regex(*buttons: str) -> str:
     """Безопасный regex для кнопок с эмодзи/символами."""
     escaped = [re.escape(btn) for btn in buttons]
     return f"^({'|'.join(escaped)})$"
+
+
+def _keyboard_for_profile(
+    profile_type: Optional[str],
+    plan: PlanCode,
+):
+    if profile_type == "patient":
+        return build_patient_menu(plan)
+    if profile_type == "doctor":
+        return build_doctor_menu(plan)
+    if profile_type == "student":
+        return build_student_menu(plan)
+    return build_role_keyboard()
 
 
 async def _delete_intro_if_any(
@@ -173,15 +186,15 @@ async def handle_role_choice(
         )
         return
 
-    if text == ROLE_HELP:
-        await show_help(update, context)
+    if text == ROLE_ABOUT:
+        await show_about(update, context)
         return
 
 
 role_handler = MessageHandler(
     filters.ChatType.PRIVATE
     & filters.Regex(
-        _buttons_regex(ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_HELP)
+        _buttons_regex(ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_ABOUT)
     ),
     handle_role_choice,
 )
@@ -275,23 +288,6 @@ async def handle_patient_menu_button(
         )
         return
 
-    if text == PAT_BTN_HISTORY:
-        history = context.user_data.get("docs_history", [])
-        if not history:
-            await update.message.reply_text(
-                "История пока пуста. Вы ещё не отправляли документы."
-            )
-            return
-
-        lines = ["📜 История последних запросов:"]
-        for i, item in enumerate(history[-10:], start=1):
-            one_line = item.replace("\n", " ")
-            if len(one_line) > 80:
-                one_line = one_line[:80] + "…"
-            lines.append(f"{i}. {one_line}")
-        await update.message.reply_text("\n".join(lines))
-        return
-
     if text == PAT_BTN_24H_PLAN:
         await run_patient_action(
             update,
@@ -317,7 +313,6 @@ patient_menu_handler = MessageHandler(
         _buttons_regex(
             PAT_BTN_EXPLAIN_DOC,
             PAT_BTN_URGENCY,
-            PAT_BTN_HISTORY,
             PAT_BTN_24H_PLAN,
             PAT_BTN_QUESTIONS,
         )
@@ -481,6 +476,9 @@ async def show_subscription(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     plan = get_user_plan(context)
+    context.user_data["subscription_back_profile"] = context.user_data.get(
+        "profile_type"
+    )
     text = messages.subscription_text(str(plan))
 
     await update.message.reply_text(
@@ -492,6 +490,28 @@ async def show_subscription(
 subscription_handler = MessageHandler(
     filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(BTN_SUBSCRIPTION)),
     show_subscription,
+)
+
+
+async def handle_back_from_subscription(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    profile_type: Optional[str] = context.user_data.get(
+        "subscription_back_profile"
+    ) or context.user_data.get("profile_type")
+    plan = get_user_plan(context)
+    kb = _keyboard_for_profile(profile_type, plan)
+    await update.message.reply_text(
+        "Возвращаю в предыдущее меню.",
+        reply_markup=kb,
+    )
+
+
+back_from_subscription_handler = MessageHandler(
+    filters.ChatType.PRIVATE
+    & filters.Regex(_buttons_regex(BTN_BACK_FROM_SUBSCRIPTION)),
+    handle_back_from_subscription,
 )
 
 
@@ -510,17 +530,11 @@ async def handle_plan_choice(
     else:
         return
 
-    profile_type: Optional[str] = context.user_data.get("profile_type")
+    profile_type: Optional[str] = context.user_data.get(
+        "subscription_back_profile"
+    ) or context.user_data.get("profile_type")
     plan = get_user_plan(context)
-
-    if profile_type == "patient":
-        kb = build_patient_menu(plan)
-    elif profile_type == "doctor":
-        kb = build_doctor_menu(plan)
-    elif profile_type == "student":
-        kb = build_student_menu(plan)
-    else:
-        kb = build_role_keyboard()
+    kb = _keyboard_for_profile(profile_type, plan)
 
     await update.message.reply_text(
         msg + "\nНастройки учтены.",
@@ -538,52 +552,21 @@ plan_choice_handler = MessageHandler(
 # ---------- HELP / ПОДСКАЗКИ ----------
 
 
-async def show_help(
+async def show_about(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    profile = context.user_data.get("profile_type")
-
-    if profile == "doctor":
-        text = (
-            "Режим врача 🩺.\n\n"
-            "• Клинические рекомендации — сжатая информация по запросу.\n"
-            "• Справочник лекарств — действующее вещество, аналоги.\n"
-            "• Объяснение пациенту — понятные формулировки.\n"
-            "• Зарубежная литература — ориентир по зарубежным данным.\n"
-            "• Психологическая поддержка — выговориться и снизить напряжение."
-        )
-    elif profile == "student":
-        text = (
-            "Режим студента 🎓.\n\n"
-            "• Объяснить тему — разобрать непонятный фрагмент.\n"
-            "• Потренироваться — клинические мини-кейсы.\n"
-            "• Помощь с тестами — разбор вопросов.\n"
-            "• Реферат/доклад — структура и опоры.\n"
-            "• Психологическая помощь — поддержка и мотивация."
-        )
-    elif profile == "patient":
-        text = (
-            "Режим пациента 🤒.\n\n"
-            "• 📎 Расшифровать документ — простое объяснение данных.\n"
-            "• 🚨 Срочно или нет — безопасная оценка срочности.\n"
-            "• 🧭 План на 24 часа — шаги до консультации.\n"
-            "• 🗣️ Вопросы к врачу — подготовка к приёму.\n"
-            "• История — краткие записи по прошлым запросам."
-        )
-    else:
-        text = (
-            "Я могу работать в трёх режимах:\n"
-            "• пациент — разбор анализов и заключений простым языком;\n"
-            "• студент — объяснение тем, задачи, тесты;\n"
-            "• врач — клинические подсказки и формулировки для пациентов.\n\n"
-            "Выберите роль, чтобы продолжить."
-        )
+    text = (
+        "Я MedAll 🤖\n\n"
+        "Помогаю разбирать медицинские документы и формулировать вопросы "
+        "к врачу понятным языком.\n"
+        "Я не ставлю диагноз и не заменяю очный приём."
+    )
 
     await update.message.reply_text(text)
 
 
-help_handler = MessageHandler(
-    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(ROLE_HELP)),
-    show_help,
+about_handler = MessageHandler(
+    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(ROLE_ABOUT)),
+    show_about,
 )

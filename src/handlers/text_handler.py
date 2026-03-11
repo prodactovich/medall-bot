@@ -34,6 +34,7 @@ from src.services.patient_context import (
 )
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
+    BTN_BACK_FROM_SUBSCRIPTION,
     BTN_BACK_TO_ROLE,
     BTN_PATIENT_CHANGE_ROLE,
     BTN_PLAN_BASIC,
@@ -47,11 +48,10 @@ from src.ui.buttons import (
     DOCTOR_SPECIALTIES,
     PAT_BTN_24H_PLAN,
     PAT_BTN_EXPLAIN_DOC,
-    PAT_BTN_HISTORY,
     PAT_BTN_QUESTIONS,
     PAT_BTN_URGENCY,
+    ROLE_ABOUT,
     ROLE_DOCTOR,
-    ROLE_HELP,
     ROLE_PATIENT,
     ROLE_STUDENT,
     ST_BTN_ESSAY,
@@ -143,7 +143,7 @@ async def _route_keyboard_buttons(
 
     text = update.message.text
 
-    if text in (ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_HELP):
+    if text in (ROLE_PATIENT, ROLE_STUDENT, ROLE_DOCTOR, ROLE_ABOUT):
         await roles.handle_role_choice(update, context)
         return True
 
@@ -154,11 +154,13 @@ async def _route_keyboard_buttons(
     if text in (BTN_BACK_TO_ROLE, BTN_PATIENT_CHANGE_ROLE):
         await roles.handle_back_to_role(update, context)
         return True
+    if text == BTN_BACK_FROM_SUBSCRIPTION:
+        await roles.handle_back_from_subscription(update, context)
+        return True
 
     if text in (
         PAT_BTN_EXPLAIN_DOC,
         PAT_BTN_URGENCY,
-        PAT_BTN_HISTORY,
         PAT_BTN_24H_PLAN,
         PAT_BTN_QUESTIONS,
     ):

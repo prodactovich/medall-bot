@@ -5,17 +5,23 @@ from typing import Literal
 from telegram import ReplyKeyboardMarkup
 
 PlanType = Literal["basic", "pro"]
+PERSISTENT_KB_KWARGS = {
+    "resize_keyboard": True,
+    "is_persistent": True,
+    "one_time_keyboard": False,
+}
 
 # ---------- Общие кнопки ----------
 
 ROLE_PATIENT = "👨‍⚕️ Пациент"
 ROLE_STUDENT = "👩‍🎓 Студент"
 ROLE_DOCTOR = "👨‍⚕️ Врач"
-ROLE_HELP = "🆘 Помощь"
+ROLE_ABOUT = "🤖 Обо мне"
 
 BTN_BACK_TO_ROLE = "↩️ Выбрать роль"
 BTN_PATIENT_CHANGE_ROLE = "🔁 Сменить роль"
 BTN_SUBSCRIPTION = "💳 Подписка MedAll"
+BTN_BACK_FROM_SUBSCRIPTION = "↩️ Назад"
 
 # ---------- Тарифы ----------
 
@@ -32,7 +38,6 @@ PAT_BTN_EXPLAIN_DOC = "📎 Расшифровать документ"
 PAT_BTN_URGENCY = "🚨 Срочно или нет"
 PAT_BTN_24H_PLAN = "🧭 План на 24 часа"
 PAT_BTN_QUESTIONS = "🗣️ Вопросы к врачу"
-PAT_BTN_HISTORY = "📜 История"
 
 # ---------- Врач ----------
 
@@ -75,9 +80,9 @@ ST_BTN_SUPPORT = "🤝 Психологическая помощь"
 def build_role_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [ROLE_PATIENT, ROLE_STUDENT],
-        [ROLE_DOCTOR, ROLE_HELP],
+        [ROLE_DOCTOR, ROLE_ABOUT],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, **PERSISTENT_KB_KWARGS)
 
 
 def build_patient_menu(
@@ -86,10 +91,9 @@ def build_patient_menu(
     keyboard = [
         [PAT_BTN_EXPLAIN_DOC, PAT_BTN_URGENCY],
         [PAT_BTN_24H_PLAN, PAT_BTN_QUESTIONS],
-        [PAT_BTN_HISTORY],
         [BTN_SUBSCRIPTION, BTN_PATIENT_CHANGE_ROLE],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, **PERSISTENT_KB_KWARGS)
 
 
 def build_doctor_menu(plan: PlanType) -> ReplyKeyboardMarkup:
@@ -99,7 +103,7 @@ def build_doctor_menu(plan: PlanType) -> ReplyKeyboardMarkup:
         [DOC_BTN_SUPPORT],
         [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, **PERSISTENT_KB_KWARGS)
 
 
 def build_student_menu(plan: PlanType) -> ReplyKeyboardMarkup:
@@ -109,7 +113,7 @@ def build_student_menu(plan: PlanType) -> ReplyKeyboardMarkup:
         [ST_BTN_SUPPORT],
         [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, **PERSISTENT_KB_KWARGS)
 
 
 def build_doctor_specialties_keyboard() -> ReplyKeyboardMarkup:
@@ -117,17 +121,13 @@ def build_doctor_specialties_keyboard() -> ReplyKeyboardMarkup:
         DOCTOR_SPECIALTIES[i : i + 2]
         for i in range(0, len(DOCTOR_SPECIALTIES), 2)
     ]
-    return ReplyKeyboardMarkup(
-        rows,
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
+    return ReplyKeyboardMarkup(rows, **PERSISTENT_KB_KWARGS)
 
 
 def build_plan_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
         [BTN_PLAN_BASIC],
         [BTN_PLAN_PREMIUM],
-        [BTN_BACK_TO_ROLE],
+        [BTN_BACK_FROM_SUBSCRIPTION],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, **PERSISTENT_KB_KWARGS)
