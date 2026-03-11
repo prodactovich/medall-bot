@@ -22,10 +22,10 @@ def upgrade() -> None:
             nullable=False,
             server_default="0",
         ),
-        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
             "updated_at",
-            sa.DateTime(),
+            sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
             onupdate=sa.text("CURRENT_TIMESTAMP"),

@@ -199,10 +199,10 @@ class RateLimitBucket(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, index=True
+        DateTime(timezone=True), nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),

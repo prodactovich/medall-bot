@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Deque, Dict, Tuple
 
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from src.db.models import RateLimitBucket
@@ -16,6 +17,19 @@ from src.db.session import get_session
 # Глобальный лимит параллельных OCR-операций.
 OCR_MAX_CONCURRENCY = max(1, int(os.getenv("OCR_MAX_CONCURRENCY", "3")))
 OCR_SEMAPHORE = asyncio.Semaphore(OCR_MAX_CONCURRENCY)
+
+
+def cleanup_rate_limit_buckets() -> int:
+    """
+    Удаляет просроченные rate-limit buckets.
+    Возвращает количество удалённых строк.
+    """
+    now = datetime.now(timezone.utc)
+    with get_session() as session:
+        result = session.execute(
+            delete(RateLimitBucket).where(RateLimitBucket.expires_at <= now)
+        )
+        return int(result.rowcount or 0)
 
 
 def check_rate_limit(

@@ -6,8 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем проект
-COPY . .
+# Копируем только runtime-части проекта
+COPY alembic.ini .
+COPY migrations ./migrations
+COPY src ./src
+COPY domain ./domain
 
 # Применяем миграции и запускаем бота (polling)
 CMD ["sh", "-c", "python -m alembic upgrade head && python -m src.bot"]

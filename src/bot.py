@@ -3,7 +3,7 @@ from __future__ import annotations
 from telegram.error import Conflict, Forbidden
 from telegram.ext import ApplicationBuilder
 
-from src.config import TELEGRAM_TOKEN
+from src.config import TELEGRAM_TOKEN, validate_runtime_config
 from src.handlers.photo_handler import photo_handler
 from src.handlers.roles import (
     about_handler,
@@ -19,9 +19,12 @@ from src.handlers.roles import (
     subscription_handler,
 )
 from src.handlers.text_handler import text_handler
+from src.security import cleanup_rate_limit_buckets
 
 
 def main() -> None:
+    validate_runtime_config()
+
     # Explicitly set longer timeouts to avoid connect/read timeouts on slow networks.
     app = (
         ApplicationBuilder()
@@ -67,6 +70,22 @@ def main() -> None:
         raise context.error
 
     app.add_error_handler(handle_errors)
+
+    async def cleanup_rate_limits_job(context):
+        try:
+            deleted = cleanup_rate_limit_buckets()
+            if deleted:
+                print(f"[RATE_LIMIT] cleaned {deleted} expired buckets")
+        except Exception as e:
+            print(f"[RATE_LIMIT] cleanup job failed: {e}")
+
+    if app.job_queue:
+        app.job_queue.run_repeating(
+            cleanup_rate_limits_job,
+            interval=300,
+            first=300,
+            name="cleanup_rate_limit_buckets",
+        )
 
     print("MedAll бот запущен…")
     app.run_polling()
