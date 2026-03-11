@@ -4,8 +4,14 @@ import asyncio
 import os
 import time
 from collections import deque
+from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Deque, Dict, Tuple
+
+from sqlalchemy.exc import IntegrityError
+
+from src.db.models import RateLimitBucket
+from src.db.session import get_session
 
 # Глобальный лимит параллельных OCR-операций.
 OCR_MAX_CONCURRENCY = max(1, int(os.getenv("OCR_MAX_CONCURRENCY", "3")))
@@ -26,18 +32,81 @@ def check_rate_limit(
     - allowed: можно ли обработать запрос;
     - retry_after: через сколько секунд можно повторить (если blocked).
     """
-    now = time.monotonic()
-    bot_data = context.application.bot_data
-    buckets: Dict[str, Deque[float]] = bot_data.setdefault("rate_limits", {})
     key = f"{channel}:{user_id}"
-    bucket = buckets.setdefault(key, deque())
+    now = datetime.now(timezone.utc)
 
-    while bucket and (now - bucket[0]) > window_seconds:
-        bucket.popleft()
+    try:
+        with get_session() as session:
+            bucket = session.get(RateLimitBucket, key)
 
-    if len(bucket) >= limit:
-        retry_after = max(1, ceil(window_seconds - (now - bucket[0])))
-        return False, retry_after
+            # TTL-окно истекло или записи нет -> начинаем новое окно.
+            if not bucket or bucket.expires_at <= now:
+                expires_at = now + timedelta(seconds=window_seconds)
+                if not bucket:
+                    session.add(
+                        RateLimitBucket(
+                            key=key,
+                            count=1,
+                            expires_at=expires_at,
+                        )
+                    )
+                else:
+                    bucket.count = 1
+                    bucket.expires_at = expires_at
+                    session.add(bucket)
+                return True, 0
 
-    bucket.append(now)
-    return True, 0
+            if bucket.count >= limit:
+                retry_after = max(
+                    1, ceil((bucket.expires_at - now).total_seconds())
+                )
+                return False, retry_after
+
+            bucket.count += 1
+            session.add(bucket)
+            return True, 0
+    except IntegrityError:
+        # Редкий race на создании bucket: повторяем один раз.
+        with get_session() as retry_session:
+            bucket = retry_session.get(RateLimitBucket, key)
+            if not bucket or bucket.expires_at <= now:
+                expires_at = now + timedelta(seconds=window_seconds)
+                if not bucket:
+                    retry_session.add(
+                        RateLimitBucket(
+                            key=key,
+                            count=1,
+                            expires_at=expires_at,
+                        )
+                    )
+                else:
+                    bucket.count = 1
+                    bucket.expires_at = expires_at
+                    retry_session.add(bucket)
+                return True, 0
+
+            if bucket.count >= limit:
+                retry_after = max(
+                    1, ceil((bucket.expires_at - now).total_seconds())
+                )
+                return False, retry_after
+
+            bucket.count += 1
+            retry_session.add(bucket)
+            return True, 0
+    except Exception:
+        # Fallback: не блокируем трафик полностью при временных проблемах БД.
+        now_mono = time.monotonic()
+        bot_data = context.application.bot_data
+        buckets: Dict[str, Deque[float]] = bot_data.setdefault(
+            "rate_limits_fallback",
+            {},
+        )
+        bucket = buckets.setdefault(key, deque())
+        while bucket and (now_mono - bucket[0]) > window_seconds:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = max(1, ceil(window_seconds - (now_mono - bucket[0])))
+            return False, retry_after
+        bucket.append(now_mono)
+        return True, 0

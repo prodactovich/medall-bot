@@ -189,3 +189,21 @@ class EventLog(Base):
         String(64), nullable=True
     )
     payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+
+class RateLimitBucket(Base):
+    __tablename__ = "rate_limit_buckets"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

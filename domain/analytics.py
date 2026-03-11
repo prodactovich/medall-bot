@@ -26,6 +26,7 @@ REDACT_KEYS = {
     "ai_input",
     "document_text",
     "ocr_text",
+    "review_text",
 }
 
 

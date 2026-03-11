@@ -151,7 +151,7 @@ async def _maybe_grant_ocr_bonus_for_feedback(
         "feedback_submitted",
         user_id=user_id,
         session_id=ensure_session_id(context),
-        review_text=feedback_body,
+        review_length=len(feedback_body),
         bonus_docs=BONUS_OCR_DOCS,
     )
 
