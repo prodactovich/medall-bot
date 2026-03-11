@@ -6,3 +6,4 @@ venv/
 tmp/
 medall.db
 medall.db-journal
+domain/analytics.jsonl

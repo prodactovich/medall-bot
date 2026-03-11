@@ -9,9 +9,11 @@ from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from domain.enums import PlanCode
 from src.config import INTRO_VIDEO_CAPTION, INTRO_VIDEO_PATH
+from src.handlers.patient_actions import run_patient_action
 from src.ui import messages
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
+    BTN_PATIENT_CHANGE_ROLE,
     BTN_PLAN_BASIC,
     BTN_PLAN_PREMIUM,
     BTN_SUBSCRIPTION,
@@ -21,10 +23,11 @@ from src.ui.buttons import (
     DOC_BTN_PATIENT_EXPL,
     DOC_BTN_SUPPORT,
     DOCTOR_SPECIALTIES,
-    PAT_BTN_ACTIONS,
-    PAT_BTN_DEEP,
+    PAT_BTN_24H_PLAN,
+    PAT_BTN_EXPLAIN_DOC,
     PAT_BTN_HISTORY,
-    PAT_BTN_THESIS,
+    PAT_BTN_QUESTIONS,
+    PAT_BTN_URGENCY,
     PLAN_BASIC,
     PLAN_PREMIUM,
     PLAN_PRO,
@@ -137,7 +140,7 @@ async def handle_role_choice(
 
     if text == ROLE_PATIENT:
         context.user_data["profile_type"] = "patient"
-        context.user_data["mode"] = "patient_thesis"
+        context.user_data["mode"] = "patient_explain_document"
         await update.message.reply_text(
             messages.patient_intro(),
             reply_markup=build_patient_menu(plan),
@@ -236,7 +239,8 @@ async def handle_back_to_role(
 
 
 back_to_role_handler = MessageHandler(
-    filters.ChatType.PRIVATE & filters.Regex(_buttons_regex(BTN_BACK_TO_ROLE)),
+    filters.ChatType.PRIVATE
+    & filters.Regex(_buttons_regex(BTN_BACK_TO_ROLE, BTN_PATIENT_CHANGE_ROLE)),
     handle_back_to_role,
 )
 
@@ -249,33 +253,25 @@ async def handle_patient_menu_button(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     text = update.message.text
-    plan = get_user_plan(context)
 
     if context.user_data.get("profile_type") != "patient":
         return
 
-    if text == PAT_BTN_THESIS:
-        context.user_data["mode"] = "patient_thesis"
-        await update.message.reply_text(
-            "Режим: 📌 тезисно.\n"
-            "Я буду выделять ключевые маркёры и выводы в сжатом формате.",
+    if text == PAT_BTN_EXPLAIN_DOC:
+        await run_patient_action(
+            update,
+            context,
+            action="explain_document",
+            scenario_mode="patient_explain_document",
         )
         return
 
-    if text == PAT_BTN_DEEP:
-        if plan == PLAN_BASIC:
-            await update.message.reply_text(
-                "Глубокий анализ полностью доступен в MedAll PREMIUM.\n"
-                "В BASIC есть ограниченное число глубоких разборов.\n\n"
-                "Чтобы снять ограничения, откройте экран подписки.",
-                reply_markup=build_plan_keyboard(),
-            )
-            return
-
-        context.user_data["mode"] = "patient_deep"
-        await update.message.reply_text(
-            "Режим: 🧠 глубокий анализ.\n"
-            "Я буду разбирать информацию подробнее, с логикой и аналогиями.",
+    if text == PAT_BTN_URGENCY:
+        await run_patient_action(
+            update,
+            context,
+            action="urgency_check",
+            scenario_mode="patient_urgency_check",
         )
         return
 
@@ -296,15 +292,21 @@ async def handle_patient_menu_button(
         await update.message.reply_text("\n".join(lines))
         return
 
-    if text == PAT_BTN_ACTIONS:
-        context.user_data["mode"] = "patient_actions"
-        await update.message.reply_text(
-            "Режим: 🧭 порядок действий.\n"
-            "После вашего следующего сообщения я постараюсь:\n"
-            "• обозначить возможные причины;\n"
-            "• подсказать, к какому врачу логичнее обратиться;\n"
-            "• предложить примерный список вопросов к врачу;\n"
-            "• задать уточняющие вопросы для более точного маршрута.",
+    if text == PAT_BTN_24H_PLAN:
+        await run_patient_action(
+            update,
+            context,
+            action="next_24h_plan",
+            scenario_mode="patient_next_24h_plan",
+        )
+        return
+
+    if text == PAT_BTN_QUESTIONS:
+        await run_patient_action(
+            update,
+            context,
+            action="questions_for_doctor",
+            scenario_mode="patient_questions_for_doctor",
         )
         return
 
@@ -313,10 +315,11 @@ patient_menu_handler = MessageHandler(
     filters.ChatType.PRIVATE
     & filters.Regex(
         _buttons_regex(
-            PAT_BTN_THESIS,
-            PAT_BTN_DEEP,
+            PAT_BTN_EXPLAIN_DOC,
+            PAT_BTN_URGENCY,
             PAT_BTN_HISTORY,
-            PAT_BTN_ACTIONS,
+            PAT_BTN_24H_PLAN,
+            PAT_BTN_QUESTIONS,
         )
     ),
     handle_patient_menu_button,
@@ -562,9 +565,10 @@ async def show_help(
     elif profile == "patient":
         text = (
             "Режим пациента 🤒.\n\n"
-            "• Тезисно — короткие выводы и ключевые маркёры.\n"
-            "• Глубокий анализ — подробное объяснение (в PREMIUM ещё глубже).\n"
-            "• Порядок действий — подготовка к приёму и вопросы врачу.\n"
+            "• 📎 Расшифровать документ — простое объяснение данных.\n"
+            "• 🚨 Срочно или нет — безопасная оценка срочности.\n"
+            "• 🧭 План на 24 часа — шаги до консультации.\n"
+            "• 🗣️ Вопросы к врачу — подготовка к приёму.\n"
             "• История — краткие записи по прошлым запросам."
         )
     else:

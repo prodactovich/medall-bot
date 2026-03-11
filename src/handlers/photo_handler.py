@@ -24,6 +24,13 @@ from src.quota import (
     restore_ocr_bonus_document,
 )
 from src.security import OCR_SEMAPHORE, check_rate_limit
+from src.services.patient_context import (
+    append_scenario_message,
+    set_current_scenario,
+    set_document_summary,
+    set_document_text,
+    set_last_ai_breakdown,
+)
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
 from src.vision_client import image_to_text
@@ -154,6 +161,22 @@ async def handle_photo(
         plan = get_user_plan(context)
         role_desc = build_role_description(profile, mode, plan, context)
 
+        if user_id is not None and profile == "patient":
+            scenario = mode or "patient_photo"
+            context.user_data["last_document_text"] = text
+            set_document_text(
+                user_id,
+                text,
+                summary=context.user_data.get("last_document_summary"),
+            )
+            set_current_scenario(user_id, scenario)
+            append_scenario_message(
+                user_id,
+                scenario=scenario,
+                author="user",
+                text=text,
+            )
+
         ai_input = build_ai_input(
             raw_text=text,
             doc_type=doc_type,
@@ -216,6 +239,20 @@ async def handle_photo(
             explanation_clean = (
                 "Не смог сформировать ответ. Попробуйте, пожалуйста, ещё раз "
                 "или переформулируйте запрос."
+            )
+
+        if user_id is not None and profile == "patient":
+            scenario = mode or "patient_photo"
+            summary = explanation_clean[:500]
+            context.user_data["last_ai_breakdown"] = explanation_clean
+            context.user_data["last_document_summary"] = summary
+            set_last_ai_breakdown(user_id, explanation_clean)
+            set_document_summary(user_id, summary)
+            append_scenario_message(
+                user_id,
+                scenario=scenario,
+                author="assistant",
+                text=explanation_clean,
             )
 
         reply_text = (

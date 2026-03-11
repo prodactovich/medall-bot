@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from telegram.ext import ContextTypes
 
-from .roles import PLAN_BASIC, PLAN_PRO
+from src.ui.buttons import PLAN_BASIC, PLAN_PRO
 
 
 def build_role_description(
@@ -28,20 +28,25 @@ def build_role_description(
     }.get(plan, "MedAll BASIC")
 
     if profile == "patient":
-        if mode == "patient_thesis":
+        if mode == "patient_explain_document":
             return (
                 f"Пациент, тариф {plan_label}, режим: тезисное краткое "
                 "объяснение результатов и документов."
             )
-        if mode == "patient_deep":
+        if mode == "patient_urgency_check":
             return (
-                f"Пациент, тариф {plan_label}, режим: глубокий анализ с "
-                "деталями, аналогиями и аккуратными выводами."
+                f"Пациент, тариф {plan_label}, режим: оценка срочности "
+                "и признаков, требующих внимания."
             )
-        if mode == "patient_actions":
+        if mode == "patient_next_24h_plan":
             return (
-                f"Пациент, тариф {plan_label}, режим: помощь с порядком действий "
-                "и подготовкой к визиту к врачу (без постановки диагноза)."
+                f"Пациент, тариф {plan_label}, режим: план безопасных действий "
+                "на ближайшие 24 часа."
+            )
+        if mode == "patient_questions_for_doctor":
+            return (
+                f"Пациент, тариф {plan_label}, режим: подготовка вопросов "
+                "к очному приёму у врача."
             )
         return f"Пациент, тариф {plan_label}, без уточнённого режима."
 

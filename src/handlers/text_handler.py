@@ -25,9 +25,17 @@ from src.quota import (
     grant_ocr_bonus_for_feedback,
 )
 from src.security import check_rate_limit
+from src.services.patient_context import (
+    append_scenario_message,
+    set_current_scenario,
+    set_document_summary,
+    set_document_text,
+    set_last_ai_breakdown,
+)
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
     BTN_BACK_TO_ROLE,
+    BTN_PATIENT_CHANGE_ROLE,
     BTN_PLAN_BASIC,
     BTN_PLAN_PREMIUM,
     BTN_SUBSCRIPTION,
@@ -37,10 +45,11 @@ from src.ui.buttons import (
     DOC_BTN_PATIENT_EXPL,
     DOC_BTN_SUPPORT,
     DOCTOR_SPECIALTIES,
-    PAT_BTN_ACTIONS,
-    PAT_BTN_DEEP,
+    PAT_BTN_24H_PLAN,
+    PAT_BTN_EXPLAIN_DOC,
     PAT_BTN_HISTORY,
-    PAT_BTN_THESIS,
+    PAT_BTN_QUESTIONS,
+    PAT_BTN_URGENCY,
     ROLE_DOCTOR,
     ROLE_HELP,
     ROLE_PATIENT,
@@ -142,15 +151,16 @@ async def _route_keyboard_buttons(
         await roles.handle_doctor_specialty(update, context)
         return True
 
-    if text == BTN_BACK_TO_ROLE:
+    if text in (BTN_BACK_TO_ROLE, BTN_PATIENT_CHANGE_ROLE):
         await roles.handle_back_to_role(update, context)
         return True
 
     if text in (
-        PAT_BTN_THESIS,
-        PAT_BTN_DEEP,
+        PAT_BTN_EXPLAIN_DOC,
+        PAT_BTN_URGENCY,
         PAT_BTN_HISTORY,
-        PAT_BTN_ACTIONS,
+        PAT_BTN_24H_PLAN,
+        PAT_BTN_QUESTIONS,
     ):
         await roles.handle_patient_menu_button(update, context)
         return True
@@ -191,7 +201,10 @@ def _is_deep_mode(profile: str | None, mode: str | None) -> bool:
     Какие режимы считаем <глубокими> для лимитов.
     Пока жёстко: глубокий анализ пациента, при желании можно добавить ещё.
     """
-    if profile == "patient" and mode == "patient_deep":
+    if profile == "patient" and mode in (
+        "patient_urgency_check",
+        "patient_next_24h_plan",
+    ):
         return True
     # сюда можно добавить doctor_guidelines, doctor_foreign и т.п.
     return False
@@ -234,6 +247,7 @@ async def handle_message(
     profile = context.user_data.get("profile_type")
     mode = context.user_data.get("mode")
     plan = get_user_plan(context)
+    user_id = update.effective_user.id if update.effective_user else None
 
     if profile is None:
         await update.message.reply_text(
@@ -242,10 +256,25 @@ async def handle_message(
         )
         return
 
+    if user_id is not None and profile == "patient":
+        scenario = mode or "patient_text"
+        context.user_data["last_document_text"] = user_text
+        set_document_text(
+            user_id,
+            user_text,
+            summary=context.user_data.get("last_document_summary"),
+        )
+        set_current_scenario(user_id, scenario)
+        append_scenario_message(
+            user_id,
+            scenario=scenario,
+            author="user",
+            text=user_text,
+        )
+
     # трекинг идентификаторов
     request_id = new_request_id()
     session_id = ensure_session_id(context)
-    user_id = update.effective_user.id if update.effective_user else None
     t0 = time.perf_counter()
 
     if user_id is not None:
@@ -368,6 +397,20 @@ async def handle_message(
 
     history = context.user_data.setdefault("docs_history", [])
     history.append(user_text[:500])
+
+    if user_id is not None and profile == "patient":
+        scenario = mode or "patient_text"
+        summary = answer[:500]
+        context.user_data["last_ai_breakdown"] = answer
+        context.user_data["last_document_summary"] = summary
+        set_last_ai_breakdown(user_id, answer)
+        set_document_summary(user_id, summary)
+        append_scenario_message(
+            user_id,
+            scenario=scenario,
+            author="assistant",
+            text=answer,
+        )
 
     inc_usage(usage, deep=_is_deep_mode(profile, mode))
 

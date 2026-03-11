@@ -14,6 +14,7 @@ ROLE_DOCTOR = "👨‍⚕️ Врач"
 ROLE_HELP = "🆘 Помощь"
 
 BTN_BACK_TO_ROLE = "↩️ Выбрать роль"
+BTN_PATIENT_CHANGE_ROLE = "🔁 Сменить роль"
 BTN_SUBSCRIPTION = "💳 Подписка MedAll"
 
 # ---------- Тарифы ----------
@@ -27,10 +28,11 @@ BTN_PLAN_PREMIUM = "💎 MedAll PREMIUM"
 
 # ---------- Пациент ----------
 
-PAT_BTN_THESIS = "📌 Тезисно"
-PAT_BTN_DEEP = "🧠 Глубокий анализ"
+PAT_BTN_EXPLAIN_DOC = "📎 Расшифровать документ"
+PAT_BTN_URGENCY = "🚨 Срочно или нет"
+PAT_BTN_24H_PLAN = "🧭 План на 24 часа"
+PAT_BTN_QUESTIONS = "🗣️ Вопросы к врачу"
 PAT_BTN_HISTORY = "📜 История"
-PAT_BTN_ACTIONS = "🧭 Порядок действий"
 
 # ---------- Врач ----------
 
@@ -82,9 +84,10 @@ def build_patient_menu(
     plan: PlanType,
 ) -> ReplyKeyboardMarkup:  # plan на будущее
     keyboard = [
-        [PAT_BTN_THESIS, PAT_BTN_DEEP],
-        [PAT_BTN_ACTIONS, PAT_BTN_HISTORY],
-        [BTN_SUBSCRIPTION, BTN_BACK_TO_ROLE],
+        [PAT_BTN_EXPLAIN_DOC, PAT_BTN_URGENCY],
+        [PAT_BTN_24H_PLAN, PAT_BTN_QUESTIONS],
+        [PAT_BTN_HISTORY],
+        [BTN_SUBSCRIPTION, BTN_PATIENT_CHANGE_ROLE],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 

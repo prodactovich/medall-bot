@@ -6,9 +6,10 @@ services:
       - .env
     environment:
       INTRO_VIDEO_PATH: /app/cats_videos.mp4
-    # Храним SQLite-файл в volume, чтобы не потерять данные при пересборке
+      DATABASE_URL: sqlite:////data/medall.db
+    # Храним SQLite отдельно от кода приложения
     volumes:
-      - sqlite_data:/app
+      - sqlite_data:/data
       - ./cats_videos.mp4:/app/cats_videos.mp4:ro
     restart: unless-stopped
 
