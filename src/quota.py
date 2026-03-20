@@ -101,6 +101,27 @@ def consume_document_quota(user_id: int) -> bool:
                 )
 
 
+def restore_document_quota(user_id: int) -> None:
+    """
+    Возвращает 1 документ в месячную квоту, если он был списан,
+    но обработка не завершилась успешно.
+    """
+    month = _current_month()
+    with get_session() as session:
+        stmt = (
+            update(QuotaSnapshot)
+            .where(
+                and_(
+                    QuotaSnapshot.user_id == user_id,
+                    QuotaSnapshot.month == month,
+                    QuotaSnapshot.used_docs > 0,
+                )
+            )
+            .values(used_docs=QuotaSnapshot.used_docs - 1)
+        )
+        session.execute(stmt)
+
+
 def get_ocr_bonus_state(user_id: int) -> tuple[int, bool]:
     month = _current_month()
     with get_session() as session:

@@ -21,6 +21,7 @@ from src.quota import (
     consume_document_quota,
     consume_ocr_bonus_document,
     get_ocr_bonus_state,
+    restore_document_quota,
     restore_ocr_bonus_document,
 )
 from src.security import OCR_SEMAPHORE, check_rate_limit
@@ -30,6 +31,7 @@ from src.services.patient_context import (
     set_document_summary,
     set_document_text,
     set_last_ai_breakdown,
+    set_profile_type,
 )
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
@@ -96,8 +98,18 @@ async def handle_photo(
     bonus_left = 0
     bonus_granted = False
     used_bonus = False
+    used_main_quota = False
+    file_path: str | None = None
 
-    # Лимит документов списываем атомарно, чтобы исключить race condition.
+    photo = message.photo[-1]
+    if photo.file_size and photo.file_size > MAX_PHOTO_BYTES:
+        await message.reply_text(
+            "Файл слишком большой для обработки.\n"
+            "Пожалуйста, отправьте изображение до 10 МБ."
+        )
+        return
+
+    # Списываем квоту только после базовой валидации файла.
     if user_id is not None:
         bonus_left, bonus_granted = get_ocr_bonus_state(user_id)
         if bonus_left > 0 and consume_ocr_bonus_document(user_id):
@@ -114,6 +126,8 @@ async def handle_photo(
                 monthly_docs_limit(MAX_DOCS_PER_MONTH) + "\n\n" + bonus_hint
             )
             return
+        else:
+            used_main_quota = True
 
     await context.bot.send_chat_action(
         chat_id=message.chat_id,
@@ -126,13 +140,6 @@ async def handle_photo(
             _typing_keeper(context, message.chat_id, typing_stop)
         )
 
-    photo = message.photo[-1]
-    if photo.file_size and photo.file_size > MAX_PHOTO_BYTES:
-        await message.reply_text(
-            "Файл слишком большой для обработки.\n"
-            "Пожалуйста, отправьте изображение до 10 МБ."
-        )
-        return
     file = await photo.get_file()
     file_path = os.path.join(TEMP_DIR, f"{file.file_unique_id}.jpg")
     await file.download_to_drive(file_path)
@@ -142,6 +149,12 @@ async def handle_photo(
             text = await asyncio.to_thread(image_to_text, file_path, "rus")
 
         if not text.strip():
+            if used_bonus and user_id is not None:
+                restore_ocr_bonus_document(user_id)
+                used_bonus = False
+            elif used_main_quota and user_id is not None:
+                restore_document_quota(user_id)
+                used_main_quota = False
             await message.reply_text(
                 "Не получилось разобрать текст с изображения.\n"
                 "Попробуйте сделать фото ближе, при хорошем освещении — "
@@ -163,6 +176,7 @@ async def handle_photo(
 
         if user_id is not None and profile == "patient":
             scenario = mode or "patient_photo"
+            set_profile_type(user_id, profile)
             context.user_data["last_document_text"] = text
             set_document_text(
                 user_id,
@@ -266,6 +280,10 @@ async def handle_photo(
         if used_bonus and user_id is not None:
             # Возвращаем бонусный слот, если обработка не состоялась.
             restore_ocr_bonus_document(user_id)
+            used_bonus = False
+        elif used_main_quota and user_id is not None:
+            restore_document_quota(user_id)
+            used_main_quota = False
         print(f"OCR/DeepSeek error: {e}")
         await message.reply_text(
             "Не удалось обработать изображение. Попробуйте, пожалуйста, чуть позже."
@@ -275,10 +293,11 @@ async def handle_photo(
             typing_stop.set()
         if typing_task:
             await typing_task
-        try:
-            os.remove(file_path)
-        except OSError:
-            pass
+        if file_path:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
 
 
 photo_handler = MessageHandler(
