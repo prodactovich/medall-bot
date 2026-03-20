@@ -15,7 +15,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "user_runtime_state",
-        sa.Column("user_id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.BigInteger(), primary_key=True),
         sa.Column("profile_type", sa.String(length=32), nullable=True),
         sa.Column("current_mode", sa.String(length=64), nullable=True),
         sa.Column(

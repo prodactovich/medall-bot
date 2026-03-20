@@ -16,7 +16,7 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("telegram_id", sa.Integer(), nullable=False, unique=True),
+        sa.Column("telegram_id", sa.BigInteger(), nullable=False, unique=True),
         sa.Column("role", sa.String(length=32), nullable=False),
         sa.Column(
             "plan",
@@ -42,7 +42,7 @@ def upgrade() -> None:
     op.create_table(
         "subscriptions",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=False, index=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=False, index=True),
         sa.Column("plan", sa.String(length=16), nullable=False),
         sa.Column(
             "start_date",
@@ -82,7 +82,7 @@ def upgrade() -> None:
     op.create_table(
         "quota_snapshots",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=False, index=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=False, index=True),
         sa.Column("month", sa.String(length=7), nullable=False),
         sa.Column(
             "used_messages", sa.Integer(), nullable=False, server_default="0"
@@ -115,7 +115,7 @@ def upgrade() -> None:
     op.create_table(
         "documents",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=False, index=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=False, index=True),
         sa.Column("telegram_file_id", sa.String(length=256), nullable=False),
         sa.Column(
             "doc_type",
@@ -134,7 +134,7 @@ def upgrade() -> None:
     op.create_table(
         "requests",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=True, index=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=True, index=True),
         sa.Column("role", sa.String(length=32), nullable=False),
         sa.Column("plan", sa.String(length=16), nullable=False),
         sa.Column("request_type", sa.String(length=32), nullable=False),
@@ -195,7 +195,7 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column("event", sa.String(length=64), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=True, index=True),
+        sa.Column("user_id", sa.BigInteger(), nullable=True, index=True),
         sa.Column("session_id", sa.String(length=64), nullable=True),
         sa.Column("payload", sa.JSON(), nullable=True),
     )

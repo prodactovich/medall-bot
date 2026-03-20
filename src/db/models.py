@@ -5,6 +5,7 @@ from typing import Optional
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Integer,
@@ -22,7 +23,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(
+        BigInteger, unique=True, index=True
+    )
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     plan: Mapped[str] = mapped_column(
         String(16), nullable=False, default="basic"
@@ -42,7 +45,9 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, index=True, nullable=False
+    )
     plan: Mapped[str] = mapped_column(String(16), nullable=False)
     start_date: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -77,7 +82,9 @@ class QuotaSnapshot(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, index=True, nullable=False
+    )
     month: Mapped[str] = mapped_column(
         String(7), nullable=False
     )  # формат YYYY-MM
@@ -114,7 +121,9 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, index=True, nullable=False
+    )
     telegram_file_id: Mapped[str] = mapped_column(String(256), nullable=False)
     doc_type: Mapped[str] = mapped_column(
         String(32), nullable=False, default="other"
@@ -129,7 +138,7 @@ class Request(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, index=True, nullable=True
+        BigInteger, index=True, nullable=True
     )
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     plan: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -183,7 +192,7 @@ class EventLog(Base):
     )
     event: Mapped[str] = mapped_column(String(64), nullable=False)
     user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, index=True
+        BigInteger, nullable=True, index=True
     )
     session_id: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True
@@ -212,7 +221,7 @@ class RateLimitBucket(Base):
 class UserRuntimeState(Base):
     __tablename__ = "user_runtime_state"
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     profile_type: Mapped[Optional[str]] = mapped_column(
         String(32), nullable=True
     )
