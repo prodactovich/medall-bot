@@ -24,6 +24,7 @@ services:
       - .env
     environment:
       INTRO_VIDEO_PATH: /app/cats_videos.mp4
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
       - ./cats_videos.mp4:/app/cats_videos.mp4:ro
     restart: unless-stopped
