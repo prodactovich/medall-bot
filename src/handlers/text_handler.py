@@ -31,6 +31,7 @@ from src.services.patient_context import (
     set_document_summary,
     set_document_text,
     set_last_ai_breakdown,
+    set_profile_type,
 )
 from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
@@ -286,6 +287,7 @@ async def handle_message(
         return
 
     if user_id is not None and profile == "patient":
+        set_profile_type(user_id, profile)
         session_id = ensure_session_id(context)
         if _is_understanding_signal(user_text):
             track(
@@ -350,7 +352,7 @@ async def handle_message(
             return
 
     limits = get_limits(plan)
-    usage = ensure_usage(context)
+    usage = ensure_usage(user_id)
 
     docs_cap = limits.get("docs")
     if docs_cap is not None and usage["docs_used"] >= docs_cap:
@@ -469,7 +471,7 @@ async def handle_message(
             text=answer,
         )
 
-    inc_usage(usage, deep=_is_deep_mode(profile, mode))
+    usage = inc_usage(user_id, deep=_is_deep_mode(profile, mode))
 
     app_usage = context.application.bot_data.setdefault(
         "usage",

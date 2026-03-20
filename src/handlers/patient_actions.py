@@ -13,6 +13,7 @@ from src.services.patient_context import (
     hydrate_from_user_data,
     set_current_scenario,
     set_last_ai_breakdown,
+    set_profile_type,
 )
 from src.services.patient_prompts import (
     NO_PATIENT_CONTEXT_MESSAGE,
@@ -35,6 +36,8 @@ async def run_patient_action(
 
     user_id = user.id
     context.user_data["mode"] = scenario_mode
+    context.user_data["profile_type"] = "patient"
+    set_profile_type(user_id, "patient")
     set_current_scenario(user_id, scenario_mode)
     hydrate_from_user_data(user_id, context.user_data)
 

@@ -207,3 +207,42 @@ class RateLimitBucket(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class UserRuntimeState(Base):
+    __tablename__ = "user_runtime_state"
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_type: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True
+    )
+    current_mode: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )
+    last_document_text: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    last_ai_breakdown: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    last_document_summary: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    scenario_messages: Mapped[Optional[list]] = mapped_column(
+        JSON, nullable=True
+    )
+    docs_used: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    deep_used: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

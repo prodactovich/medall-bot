@@ -10,6 +10,7 @@ from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 from domain.enums import PlanCode
 from src.config import INTRO_VIDEO_CAPTION, INTRO_VIDEO_PATH
 from src.handlers.patient_actions import run_patient_action
+from src.services.patient_context import set_current_scenario, set_profile_type
 from src.ui import messages
 from src.ui.buttons import (
     BTN_BACK_FROM_SUBSCRIPTION,
@@ -154,6 +155,11 @@ async def handle_role_choice(
     if text == ROLE_PATIENT:
         context.user_data["profile_type"] = "patient"
         context.user_data["mode"] = "patient_explain_document"
+        if update.effective_user:
+            set_profile_type(update.effective_user.id, "patient")
+            set_current_scenario(
+                update.effective_user.id, "patient_explain_document"
+            )
         await update.message.reply_text(
             messages.patient_intro(),
             reply_markup=build_patient_menu(plan),
@@ -163,6 +169,9 @@ async def handle_role_choice(
     if text == ROLE_STUDENT:
         context.user_data["profile_type"] = "student"
         context.user_data["mode"] = "student_explain"
+        if update.effective_user:
+            set_profile_type(update.effective_user.id, "student")
+            set_current_scenario(update.effective_user.id, "student_explain")
         await update.message.reply_text(
             "Роль: студент-медик 🎓\n\n"
             "Доступно:\n"
@@ -178,6 +187,8 @@ async def handle_role_choice(
 
     if text == ROLE_DOCTOR:
         context.user_data["profile_type"] = "doctor"
+        if update.effective_user:
+            set_profile_type(update.effective_user.id, "doctor")
         await update.message.reply_text(
             "Роль: врач 🩺\n\n"
             "Уточните, пожалуйста, вашу основную специальность - "
@@ -213,6 +224,9 @@ async def handle_doctor_specialty(
     context.user_data["doctor_specialty"] = spec
     context.user_data["profile_type"] = "doctor"
     context.user_data["mode"] = "doctor_default"
+    if update.effective_user:
+        set_profile_type(update.effective_user.id, "doctor")
+        set_current_scenario(update.effective_user.id, "doctor_default")
 
     await update.message.reply_text(
         "Спасибо. Я учту вашу специальность при подборе формулировок.\n\n"
@@ -245,6 +259,9 @@ async def handle_back_to_role(
 ) -> None:
     context.user_data.pop("profile_type", None)
     context.user_data.pop("mode", None)
+    if update.effective_user:
+        set_profile_type(update.effective_user.id, None)
+        set_current_scenario(update.effective_user.id, "")
     await update.message.reply_text(
         "Вы вернулись к выбору роли. Кто вы сейчас?",
         reply_markup=build_role_keyboard(),
