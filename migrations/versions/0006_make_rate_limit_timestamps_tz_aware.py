@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0006_make_rate_limit_timestamps_tz_aware"
+revision = "0006_rate_limit_tz_aware"
 down_revision = "0005_add_rate_limit_buckets"
 branch_labels = None
 depends_on = None
