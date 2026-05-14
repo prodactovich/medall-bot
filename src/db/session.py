@@ -30,11 +30,10 @@ def _build_engine(url: str):
 
 
 def get_database_url() -> str:
-    """
-    Возвращает строку подключения из env.
-    По умолчанию используем локальный файл SQLite medall.db.
-    """
-    return os.getenv("DATABASE_URL", "sqlite:///medall.db")
+    url = os.getenv("DATABASE_URL", "sqlite:///medall.db")
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
 
 
 DATABASE_URL = get_database_url()

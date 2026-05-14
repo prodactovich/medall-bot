@@ -21,6 +21,10 @@ config = context.config
 
 # Подставляем DATABASE_URL из окружения
 database_url = os.getenv("DATABASE_URL", "sqlite:///medall.db")
+if database_url.startswith("postgresql://"):
+    database_url = (
+        "postgresql+psycopg://" + database_url[len("postgresql://") :]
+    )
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Logging config
