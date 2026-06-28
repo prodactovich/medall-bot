@@ -1,13 +1,1 @@
-python-telegram-bot==21.6
-python-dotenv==1.0.1
-aiohttp==3.10.11
-requests==2.32.3
-pytest==8.3.3
-black==25.11.0
-ruff==0.14.7
-sqlalchemy==2.0.35
-alembic==1.13.3
 psycopg[binary]==3.2.3
-sqlalchemy
-alembic
-python-telegram-bot[job-queue]
