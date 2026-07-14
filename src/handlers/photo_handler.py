@@ -1,21 +1,16 @@
 import asyncio
 import os
-import time
 
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, MessageHandler, filters
 
-from domain.analytics import ensure_session_id, new_request_id, track
-from src.ai_client import ask_deepseek
+from domain.analytics import ensure_session_id, new_request_id
+from src.application.defaults import get_document_analysis_service
+from src.application.dto import DocumentAnalysisInput
+from src.application.exceptions import DocumentAnalysisError, OcrServiceError
 from src.handlers.context import build_role_description
 from src.handlers.roles import get_user_plan
-from src.nlp_utils import (
-    build_ai_input,
-    detect_doc_type,
-    detect_red_flags,
-    detect_user_emotion,
-)
 from src.quota import (
     MAX_DOCS_PER_MONTH,
     consume_document_quota,
@@ -24,18 +19,12 @@ from src.quota import (
     restore_document_quota,
     restore_ocr_bonus_document,
 )
-from src.security import OCR_SEMAPHORE, check_rate_limit
+from src.security import check_rate_limit
 from src.services.patient_context import (
-    append_scenario_message,
     set_current_scenario,
-    set_document_summary,
-    set_document_text,
-    set_last_ai_breakdown,
     set_profile_type,
 )
-from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.messages import monthly_docs_limit
-from src.vision_client import image_to_text
 
 
 async def _typing_keeper(
@@ -78,7 +67,6 @@ async def handle_photo(
     request_id = new_request_id()
     session_id = ensure_session_id(context)
     user_id = update.effective_user.id if update.effective_user else None
-    t0 = time.perf_counter()
 
     if user_id is not None:
         allowed, retry_after = check_rate_limit(
@@ -145,30 +133,6 @@ async def handle_photo(
     await file.download_to_drive(file_path)
 
     try:
-        async with OCR_SEMAPHORE:
-            text = await asyncio.to_thread(image_to_text, file_path, "rus")
-
-        if not text.strip():
-            if used_bonus and user_id is not None:
-                restore_ocr_bonus_document(user_id)
-                used_bonus = False
-            elif used_main_quota and user_id is not None:
-                restore_document_quota(user_id)
-                used_main_quota = False
-            await message.reply_text(
-                "Не получилось разобрать текст с изображения.\n"
-                "Попробуйте сделать фото ближе, при хорошем освещении — "
-                "я постараюсь помочь ещё раз."
-            )
-            return
-
-        history = context.user_data.get("docs_history", [])
-        history.append(text[:500])
-        context.user_data["docs_history"] = history
-
-        doc_type = detect_doc_type(text)
-        emotion = detect_user_emotion(text)
-        flags = detect_red_flags(text)
         profile = context.user_data.get("profile_type")
         mode = context.user_data.get("mode")
         plan = get_user_plan(context)
@@ -177,97 +141,39 @@ async def handle_photo(
         if user_id is not None and profile == "patient":
             scenario = mode or "patient_photo"
             set_profile_type(user_id, profile)
-            context.user_data["last_document_text"] = text
-            set_document_text(
-                user_id,
-                text,
-                summary=context.user_data.get("last_document_summary"),
-            )
             set_current_scenario(user_id, scenario)
-            append_scenario_message(
-                user_id,
-                scenario=scenario,
-                author="user",
-                text=text,
-            )
-
-        ai_input = build_ai_input(
-            raw_text=text,
-            doc_type=doc_type,
-            user_role=role_desc,
-            emotion=emotion,
-            flags=flags,
-        )
 
         await context.bot.send_chat_action(
             chat_id=message.chat_id,
             action=ChatAction.TYPING,
         )
 
-        track(
-            "document_sent",
-            user_id=user_id,
-            session_id=session_id,
-            request_id=request_id,
-            role=profile,
-            mode=mode,
-            plan=plan,
-            request_type="photo",
-            doc_type=doc_type,
-            input_chars=len(text),
-            red_flags=flags,
-        )
-
-        usage_info: dict = {}
-        explanation = await ask_deepseek(
-            ai_input,
-            role=role_desc,
-            mode=mode or "",
-            doc_type=doc_type,
-            emotion=emotion,
-            red_flags=flags,
-            usage_tracker=usage_info,
-            plan=plan,
-        )
-        explanation = strip_markdown_artifacts(explanation)
-
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        track(
-            "explanation_generated",
-            user_id=user_id,
-            session_id=session_id,
-            request_id=request_id,
-            role=profile,
-            mode=mode,
-            plan=plan,
-            doc_type=doc_type,
-            input_chars=len(ai_input),
-            output_chars=len(explanation),
-            red_flags=flags,
-            usage=usage_info,
-            latency_ms=latency_ms,
-        )
-
-        explanation_clean = strip_control_chars(explanation)
-        if not explanation_clean.strip():
-            explanation_clean = (
-                "Не смог сформировать ответ. Попробуйте, пожалуйста, ещё раз "
-                "или переформулируйте запрос."
+        result = await get_document_analysis_service().analyze(
+            DocumentAnalysisInput(
+                source="file",
+                user_id=user_id,
+                session_id=session_id,
+                request_id=request_id,
+                role=profile,
+                mode=mode,
+                plan=str(plan),
+                role_description=role_desc,
+                file_path=file_path,
+                ocr_language="rus",
+                current_summary=context.user_data.get("last_document_summary"),
             )
+        )
+
+        explanation_clean = result.explanation
+        history = context.user_data.get("docs_history", [])
+        history.append(result.source_text[:500])
+        context.user_data["docs_history"] = history
 
         if user_id is not None and profile == "patient":
-            scenario = mode or "patient_photo"
             summary = explanation_clean[:500]
+            context.user_data["last_document_text"] = result.source_text
             context.user_data["last_ai_breakdown"] = explanation_clean
             context.user_data["last_document_summary"] = summary
-            set_last_ai_breakdown(user_id, explanation_clean)
-            set_document_summary(user_id, summary)
-            append_scenario_message(
-                user_id,
-                scenario=scenario,
-                author="assistant",
-                text=explanation_clean,
-            )
 
         reply_text = (
             f"{explanation_clean}\n\n"
@@ -276,6 +182,30 @@ async def handle_photo(
 
         await message.reply_text(reply_text)
 
+    except OcrServiceError as e:
+        if used_bonus and user_id is not None:
+            restore_ocr_bonus_document(user_id)
+            used_bonus = False
+        elif used_main_quota and user_id is not None:
+            restore_document_quota(user_id)
+            used_main_quota = False
+        print(f"OCR error: {e}")
+        await message.reply_text(
+            "Не получилось разобрать текст с изображения.\n"
+            "Попробуйте сделать фото ближе, при хорошем освещении — "
+            "я постараюсь помочь ещё раз."
+        )
+    except DocumentAnalysisError as e:
+        if used_bonus and user_id is not None:
+            restore_ocr_bonus_document(user_id)
+            used_bonus = False
+        elif used_main_quota and user_id is not None:
+            restore_document_quota(user_id)
+            used_main_quota = False
+        print(f"Document analysis error: {e}")
+        await message.reply_text(
+            "Не удалось обработать изображение. Попробуйте, пожалуйста, чуть позже."
+        )
     except Exception as e:
         if used_bonus and user_id is not None:
             # Возвращаем бонусный слот, если обработка не состоялась.

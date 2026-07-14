@@ -1,23 +1,17 @@
 from __future__ import annotations
 
-import time
-
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from domain.analytics import ensure_session_id, new_request_id, track
-from src.ai_client import ask_deepseek
+from src.application.defaults import get_document_analysis_service
+from src.application.dto import DocumentAnalysisInput
+from src.application.exceptions import DocumentAnalysisError
 from src.handlers import roles
 from src.handlers.context import build_role_description
 from src.handlers.roles import get_user_plan
 from src.limits import ensure_usage, get_limits, inc_usage
-from src.nlp_utils import (
-    build_ai_input,
-    detect_doc_type,
-    detect_red_flags,
-    detect_user_emotion,
-)
 from src.quota import (
     MAX_DOCS_PER_MONTH,
     get_docs_used,
@@ -26,14 +20,9 @@ from src.quota import (
 )
 from src.security import check_rate_limit
 from src.services.patient_context import (
-    append_scenario_message,
     set_current_scenario,
-    set_document_summary,
-    set_document_text,
-    set_last_ai_breakdown,
     set_profile_type,
 )
-from src.text_cleaning import strip_control_chars, strip_markdown_artifacts
 from src.ui.buttons import (
     BTN_BACK_FROM_SUBSCRIPTION,
     BTN_BACK_TO_ROLE,
@@ -305,19 +294,7 @@ async def handle_message(
             return
 
         scenario = mode or "patient_text"
-        context.user_data["last_document_text"] = user_text
-        set_document_text(
-            user_id,
-            user_text,
-            summary=context.user_data.get("last_document_summary"),
-        )
         set_current_scenario(user_id, scenario)
-        append_scenario_message(
-            user_id,
-            scenario=scenario,
-            author="user",
-            text=user_text,
-        )
 
         if context.user_data.get(
             "last_ai_breakdown"
@@ -334,7 +311,6 @@ async def handle_message(
     # трекинг идентификаторов
     request_id = new_request_id()
     session_id = ensure_session_id(context)
-    t0 = time.perf_counter()
 
     if user_id is not None:
         allowed, retry_after = check_rate_limit(
@@ -365,19 +341,7 @@ async def handle_message(
             await update.message.reply_text(deep_limit_reached())
             return
 
-    doc_type = detect_doc_type(user_text)
-    emotion = detect_user_emotion(user_text)
-    red_flags = detect_red_flags(user_text)
-
     role_desc = build_role_description(profile, mode, plan, context)
-
-    ai_input = build_ai_input(
-        raw_text=user_text,
-        doc_type=doc_type,
-        user_role=role_desc,
-        emotion=emotion,
-        flags=red_flags,
-    )
 
     if update.effective_chat:
         try:
@@ -388,22 +352,6 @@ async def handle_message(
         except Exception:
             pass
 
-    usage_info: dict = {}
-
-    track(
-        "document_sent",
-        user_id=user_id,
-        session_id=session_id,
-        request_id=request_id,
-        role=profile,
-        mode=mode,
-        plan=plan,
-        request_type="text",
-        doc_type=doc_type,
-        input_chars=len(user_text),
-        red_flags=red_flags,
-    )
-
     # Сообщаем пользователю, что идёт генерация ответа.
     try:
         await update.message.reply_text(
@@ -413,63 +361,43 @@ async def handle_message(
         pass
 
     try:
-        answer = await ask_deepseek(
-            ai_input,
-            role=role_desc,
-            mode=mode or "",
-            doc_type=doc_type,
-            emotion=emotion,
-            red_flags=red_flags,
-            usage_tracker=usage_info,
-            plan=plan,
+        result = await get_document_analysis_service().analyze(
+            DocumentAnalysisInput(
+                source="text",
+                user_id=user_id,
+                session_id=session_id,
+                request_id=request_id,
+                role=profile,
+                mode=mode,
+                plan=str(plan),
+                role_description=role_desc,
+                text=user_text,
+                current_summary=context.user_data.get("last_document_summary"),
+            )
         )
-    except Exception as e:
-        print(f"DeepSeek error: {e}")
+    except DocumentAnalysisError as e:
+        print(f"Document analysis error: {e}")
         await update.message.reply_text(
             "Не удалось обработать запрос. Попробуйте ещё раз чуть позже."
         )
         return
-    answer = strip_markdown_artifacts(answer)
-    answer = strip_control_chars(answer)
-    if not answer.strip():
-        answer = (
-            "Не смог сформировать ответ. Попробуйте, пожалуйста, ещё раз "
-            "или переформулируйте запрос."
+    except Exception as e:
+        print(f"Unexpected document analysis error: {e}")
+        await update.message.reply_text(
+            "Не удалось обработать запрос. Попробуйте ещё раз чуть позже."
         )
+        return
 
-    latency_ms = int((time.perf_counter() - t0) * 1000)
-    track(
-        "explanation_generated",
-        user_id=user_id,
-        session_id=session_id,
-        request_id=request_id,
-        role=profile,
-        mode=mode,
-        plan=plan,
-        doc_type=doc_type,
-        input_chars=len(ai_input),
-        output_chars=len(answer),
-        red_flags=red_flags,
-        usage=usage_info,
-        latency_ms=latency_ms,
-    )
+    answer = result.explanation
 
     history = context.user_data.setdefault("docs_history", [])
-    history.append(user_text[:500])
+    history.append(result.source_text[:500])
 
     if user_id is not None and profile == "patient":
-        scenario = mode or "patient_text"
         summary = answer[:500]
+        context.user_data["last_document_text"] = result.source_text
         context.user_data["last_ai_breakdown"] = answer
         context.user_data["last_document_summary"] = summary
-        set_last_ai_breakdown(user_id, answer)
-        set_document_summary(user_id, summary)
-        append_scenario_message(
-            user_id,
-            scenario=scenario,
-            author="assistant",
-            text=answer,
-        )
 
     usage = inc_usage(user_id, deep=_is_deep_mode(profile, mode))
 
@@ -477,7 +405,7 @@ async def handle_message(
         "usage",
         {"prompt_chars": 0, "completion_chars": 0},
     )
-    app_usage["prompt_chars"] += len(ai_input)
+    app_usage["prompt_chars"] += result.prompt_chars
     app_usage["completion_chars"] += len(answer)
 
     print(
